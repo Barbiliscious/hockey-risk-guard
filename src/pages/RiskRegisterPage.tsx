@@ -142,13 +142,39 @@ export default function RiskRegisterPage() {
       if (filters.club !== "all" && r.club_id !== filters.club) return false;
       if (filters.inherent !== "all" && inherent !== filters.inherent) return false;
       if (filters.residual !== "all" && residual !== filters.residual) return false;
+
+      // Alert filters
+      if (filters.alert !== "all") {
+        const notClosed = (r.status ?? "") !== "Closed";
+        const actionCount = actionCountByRisk.get(r.id) ?? 0;
+        const qiCount = qiCountByRisk.get(r.id) ?? 0;
+        const tgt = r.risk_target_rating ? RATING_SCORE[r.risk_target_rating] : null;
+        const res = residual ? RATING_SCORE[residual] : null;
+        switch (filters.alert) {
+          case "overdue":
+            if (!(r.next_review_date && r.next_review_date < today && notClosed)) return false; break;
+          case "high_no_action":
+            if (!((residual === "High" || residual === "Very High") && notClosed && actionCount === 0)) return false; break;
+          case "above_target":
+            if (!(tgt && res && res > tgt && notClosed)) return false; break;
+          case "no_controls":
+            if (!((!r.controls_in_place || r.controls_in_place.trim() === "") && notClosed)) return false; break;
+          case "no_owner":
+            if (!((!r.risk_owner || r.risk_owner.trim() === "") && notClosed)) return false; break;
+          case "has_actions":
+            if (actionCount === 0) return false; break;
+          case "has_qi":
+            if (qiCount === 0) return false; break;
+        }
+      }
+
       if (s) {
         const hay = `${r.risk_external_id} ${r.risk_event} ${r.consequences ?? ""}`.toLowerCase();
         if (!hay.includes(s)) return false;
       }
       return true;
     });
-  }, [risks, filters, search, matrix]);
+  }, [risks, filters, search, matrix, actionCountByRisk, qiCountByRisk]);
 
   const archive = useMutation({
     mutationFn: async (risk: Risk) => {
