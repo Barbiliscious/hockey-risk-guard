@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { ListChecks, Grid3x3, History, ShieldAlert, Target, Lightbulb, LayoutDashboard } from "lucide-react";
+import { ListChecks, Grid3x3, History, ShieldAlert, Target, Lightbulb, LayoutDashboard, Settings } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -20,6 +20,7 @@ const items = [
   { title: "Quality Improvement", url: "/risk/qi", icon: Lightbulb },
   { title: "Risk Matrix & Guidance", url: "/risk/matrix", icon: Grid3x3 },
   { title: "Audit Log", url: "/risk/audit", icon: History },
+  { title: "Settings", url: "/risk/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
