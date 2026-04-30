@@ -72,11 +72,13 @@ export default function RiskRegisterPage() {
   const { data: teams = [] } = useTeams();
   const { data: clubs = [] } = useClubs();
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({
     category: "all", type: "all", level: "all", owner: "all", status: "all", team: "all", club: "all",
     inherent: "all", residual: "all",
+    alert: "all" as "all" | "overdue" | "high_no_action" | "above_target" | "no_controls" | "no_owner" | "has_actions" | "has_qi",
   });
   const [editing, setEditing] = useState<Risk | null>(null);
   const [creating, setCreating] = useState(false);
@@ -86,6 +88,15 @@ export default function RiskRegisterPage() {
   const [reviewFor, setReviewFor] = useState<Risk | null>(null);
   const [postReviewAction, setPostReviewAction] = useState<string | null>(null);
   const [postReviewQi, setPostReviewQi] = useState<string | null>(null);
+
+  // Deep-link from Dashboard alerts
+  useEffect(() => {
+    const a = searchParams.get("alert");
+    if (a && a !== filters.alert) {
+      setFilters((f) => ({ ...f, alert: a as any }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const { data: risks = [], isLoading } = useQuery({
     queryKey: ["rg_risk_register", showArchived],
@@ -97,8 +108,25 @@ export default function RiskRegisterPage() {
     },
   });
 
+  const { data: actionsAll = [] } = useBeSmartActions({ includeArchived: false });
+  const { data: qiAll = [] } = useQiItems({ includeArchived: false });
+
+  const actionCountByRisk = useMemo(() => {
+    const m = new Map<string, number>();
+    actionsAll.forEach((a) => a.linked_risk_id && m.set(a.linked_risk_id, (m.get(a.linked_risk_id) ?? 0) + 1));
+    return m;
+  }, [actionsAll]);
+  const qiCountByRisk = useMemo(() => {
+    const m = new Map<string, number>();
+    qiAll.forEach((q) => q.linked_risk_id && m.set(q.linked_risk_id, (m.get(q.linked_risk_id) ?? 0) + 1));
+    return m;
+  }, [qiAll]);
+
   const teamName = (id?: string | null) => teams.find((t) => t.id === id)?.name ?? "";
   const clubName = (id?: string | null) => clubs.find((c) => c.id === id)?.name ?? "";
+
+  const RATING_SCORE: Record<string, number> = { Low: 1, Medium: 2, High: 3, "Very High": 4 };
+  const today = new Date().toISOString().slice(0, 10);
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
