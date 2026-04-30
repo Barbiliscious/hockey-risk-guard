@@ -77,6 +77,10 @@ export default function RiskRegisterPage() {
   const [creating, setCreating] = useState(false);
   const [auditFor, setAuditFor] = useState<Risk | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<Risk | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [reviewFor, setReviewFor] = useState<Risk | null>(null);
+  const [postReviewAction, setPostReviewAction] = useState<string | null>(null);
+  const [postReviewQi, setPostReviewQi] = useState<string | null>(null);
 
   const { data: risks = [], isLoading } = useQuery({
     queryKey: ["rg_risk_register", showArchived],
