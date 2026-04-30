@@ -21,6 +21,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { PrintHeader } from "@/components/PrintHeader";
+import { downloadCsv } from "@/lib/csv";
 
 export default function BeSmartActionsPage() {
   const qc = useQueryClient();
@@ -31,7 +33,10 @@ export default function BeSmartActionsPage() {
 
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState({ status: "all", risk: "all", club: "all", team: "all" });
+  const [filters, setFilters] = useState({
+    status: "all", risk: "all", club: "all", team: "all",
+    due: "all" as "all" | "overdue" | "due30" | "no_date" | "complete",
+  });
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<BeSmartAction | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<BeSmartAction | null>(null);
