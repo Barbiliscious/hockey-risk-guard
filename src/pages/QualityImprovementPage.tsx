@@ -93,6 +93,7 @@ export default function QualityImprovementPage() {
       if (filters.action !== "all" && r.linked_action_id !== filters.action) return false;
       if (filters.club !== "all" && r.club_id !== filters.club) return false;
       if (filters.team !== "all" && r.team_id !== filters.team) return false;
+      if (filters.awaiting && !["Logged","Under Review","Awaiting Decision"].includes(r.status ?? "")) return false;
       if (s) {
         const hay = `${r.qi_external_id} ${r.description} ${r.area ?? ""}`.toLowerCase();
         if (!hay.includes(s)) return false;
