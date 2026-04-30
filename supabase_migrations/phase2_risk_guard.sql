@@ -414,6 +414,26 @@ END $$;
 -- ---------------------------------------------------------------------
 -- 9. Dropdown seeds
 -- ---------------------------------------------------------------------
+
+-- Ensure (list_type, value) is unique so ON CONFLICT below works.
+-- Remove any pre-existing exact duplicates, keeping the oldest row.
+WITH duplicates AS (
+  SELECT
+    id,
+    row_number() OVER (
+      PARTITION BY list_type, value
+      ORDER BY created_at, id
+    ) AS rn
+  FROM public.rg_dropdown_values
+)
+DELETE FROM public.rg_dropdown_values
+WHERE id IN (
+  SELECT id FROM duplicates WHERE rn > 1
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS rg_dropdown_values_list_type_value_unique
+  ON public.rg_dropdown_values (list_type, value);
+
 INSERT INTO public.rg_dropdown_values (list_type, value, sort_order) VALUES
 ('action_status','Not Started',1),
 ('action_status','In Progress',2),
