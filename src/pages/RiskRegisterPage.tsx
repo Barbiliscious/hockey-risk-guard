@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Archive, History, Search } from "lucide-react";
+import { Plus, Pencil, Archive, History, Search, ChevronRight, ChevronDown, ClipboardCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useDropdowns } from "@/hooks/useDropdowns";
 import { useTeams } from "@/hooks/useTeams";
@@ -9,6 +9,10 @@ import { useRiskMatrix, lookupRating, likelihoodLabel, consequenceLabel } from "
 import { RiskBadge } from "@/components/RiskBadge";
 import { RiskFormDialog } from "@/components/RiskFormDialog";
 import { RiskAuditDrawer } from "@/components/RiskAuditDrawer";
+import { RiskRowExpanded } from "@/components/RiskRowExpanded";
+import { RiskReviewDialog } from "@/components/RiskReviewDialog";
+import { BeSmartActionFormDialog } from "@/components/BeSmartActionFormDialog";
+import { QiItemFormDialog } from "@/components/QiItemFormDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
