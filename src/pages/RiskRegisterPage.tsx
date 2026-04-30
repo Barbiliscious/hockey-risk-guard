@@ -4,7 +4,8 @@ import { Plus, Pencil, Archive, History, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useDropdowns } from "@/hooks/useDropdowns";
 import { useTeams } from "@/hooks/useTeams";
-import { useRiskMatrix, lookupRating } from "@/hooks/useRiskMatrix";
+import { useClubs } from "@/hooks/useClubs";
+import { useRiskMatrix, lookupRating, likelihoodLabel, consequenceLabel } from "@/hooks/useRiskMatrix";
 import { RiskBadge } from "@/components/RiskBadge";
 import { RiskFormDialog } from "@/components/RiskFormDialog";
 import { RiskAuditDrawer } from "@/components/RiskAuditDrawer";
@@ -44,6 +45,7 @@ export type Risk = {
   last_reviewed_date: string | null;
   next_review_date: string | null;
   team_id: string | null;
+  club_id: string | null;
   evidence_notes: string | null;
   is_archived: boolean;
   archived_at: string | null;
@@ -59,11 +61,12 @@ export default function RiskRegisterPage() {
   const { data: matrix = [] } = useRiskMatrix();
   const { data: dropdowns = {} } = useDropdowns();
   const { data: teams = [] } = useTeams();
+  const { data: clubs = [] } = useClubs();
 
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({
-    category: "all", type: "all", level: "all", owner: "all", status: "all", team: "all",
+    category: "all", type: "all", level: "all", owner: "all", status: "all", team: "all", club: "all",
     inherent: "all", residual: "all",
   });
   const [editing, setEditing] = useState<Risk | null>(null);
@@ -82,6 +85,7 @@ export default function RiskRegisterPage() {
   });
 
   const teamName = (id?: string | null) => teams.find((t) => t.id === id)?.name ?? "";
+  const clubName = (id?: string | null) => clubs.find((c) => c.id === id)?.name ?? "";
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -94,6 +98,7 @@ export default function RiskRegisterPage() {
       if (filters.owner !== "all" && r.risk_owner !== filters.owner) return false;
       if (filters.status !== "all" && r.status !== filters.status) return false;
       if (filters.team !== "all" && r.team_id !== filters.team) return false;
+      if (filters.club !== "all" && r.club_id !== filters.club) return false;
       if (filters.inherent !== "all" && inherent !== filters.inherent) return false;
       if (filters.residual !== "all" && residual !== filters.residual) return false;
       if (s) {
@@ -146,7 +151,7 @@ export default function RiskRegisterPage() {
 
       <Card>
         <CardContent className="p-3">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-10 gap-2">
             <div className="lg:col-span-2 relative">
               <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
               <Input className="pl-8" placeholder="Search ID, event, consequences…" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -156,6 +161,7 @@ export default function RiskRegisterPage() {
             <Filter label="Level" value={filters.level} onChange={(v) => setFilters({ ...filters, level: v })} options={opt("level")} />
             <Filter label="Owner" value={filters.owner} onChange={(v) => setFilters({ ...filters, owner: v })} options={opt("risk_owner")} />
             <Filter label="Status" value={filters.status} onChange={(v) => setFilters({ ...filters, status: v })} options={opt("risk_status")} />
+            <Filter label="Club" value={filters.club} onChange={(v) => setFilters({ ...filters, club: v })} options={clubs.map((c) => ({ label: c.name, value: c.id }))} />
             <Filter label="Team" value={filters.team} onChange={(v) => setFilters({ ...filters, team: v })} options={teams.map((t) => ({ label: t.name, value: t.id }))} />
             <Filter label="Inherent" value={filters.inherent} onChange={(v) => setFilters({ ...filters, inherent: v })} options={RATINGS} />
             <Filter label="Residual" value={filters.residual} onChange={(v) => setFilters({ ...filters, residual: v })} options={RATINGS} />
@@ -189,6 +195,7 @@ export default function RiskRegisterPage() {
                 <TableHead>Status</TableHead>
                 <TableHead>Review</TableHead>
                 <TableHead>Next Review</TableHead>
+                <TableHead>Club</TableHead>
                 <TableHead>Team</TableHead>
                 <TableHead className="min-w-[180px]">Evidence / Notes</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -196,9 +203,9 @@ export default function RiskRegisterPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={24} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={25} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={24} className="text-center text-muted-foreground py-8">No risks match.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={25} className="text-center text-muted-foreground py-8">No risks match.</TableCell></TableRow>
               ) : filtered.map((r) => {
                 const inherent = lookupRating(matrix, r.inherent_likelihood_score, r.inherent_consequence_score);
                 const residual = lookupRating(matrix, r.residual_likelihood_score, r.residual_consequence_score);
@@ -210,13 +217,13 @@ export default function RiskRegisterPage() {
                     <TableCell>{r.level}</TableCell>
                     <TableCell>{r.risk_event}</TableCell>
                     <TableCell className="text-sm">{r.consequences}</TableCell>
-                    <TableCell>{r.inherent_likelihood_score}</TableCell>
-                    <TableCell>{r.inherent_consequence_score}</TableCell>
+                    <TableCell>{r.inherent_likelihood_score ? `${r.inherent_likelihood_score} — ${likelihoodLabel(matrix, r.inherent_likelihood_score)}` : ""}</TableCell>
+                    <TableCell>{r.inherent_consequence_score ? `${r.inherent_consequence_score} — ${consequenceLabel(matrix, r.inherent_consequence_score)}` : ""}</TableCell>
                     <TableCell><RiskBadge rating={inherent} /></TableCell>
                     <TableCell className="text-sm">{r.current_risk_summary}</TableCell>
                     <TableCell className="text-sm">{r.controls_in_place}</TableCell>
-                    <TableCell>{r.residual_likelihood_score}</TableCell>
-                    <TableCell>{r.residual_consequence_score}</TableCell>
+                    <TableCell>{r.residual_likelihood_score ? `${r.residual_likelihood_score} — ${likelihoodLabel(matrix, r.residual_likelihood_score)}` : ""}</TableCell>
+                    <TableCell>{r.residual_consequence_score ? `${r.residual_consequence_score} — ${consequenceLabel(matrix, r.residual_consequence_score)}` : ""}</TableCell>
                     <TableCell><RiskBadge rating={residual} /></TableCell>
                     <TableCell><RiskBadge rating={r.risk_target_rating} /></TableCell>
                     <TableCell className="text-sm">{r.risk_target_description}</TableCell>
@@ -225,6 +232,7 @@ export default function RiskRegisterPage() {
                     <TableCell>{r.status}</TableCell>
                     <TableCell>{r.review_frequency}</TableCell>
                     <TableCell>{r.next_review_date}</TableCell>
+                    <TableCell>{clubName(r.club_id)}</TableCell>
                     <TableCell>{teamName(r.team_id)}</TableCell>
                     <TableCell className="text-sm">{r.evidence_notes}</TableCell>
                     <TableCell className="text-right whitespace-nowrap">
