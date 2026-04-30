@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Archive, MessageSquare, Search } from "lucide-react";
+import { Plus, Pencil, Archive, MessageSquare, Search, Download, Printer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQiItems, type QiItem } from "@/hooks/useQiItems";
 import { useDropdowns } from "@/hooks/useDropdowns";
@@ -21,6 +22,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { PrintHeader } from "@/components/PrintHeader";
+import { downloadCsv } from "@/lib/csv";
 
 export default function QualityImprovementPage() {
   const qc = useQueryClient();
@@ -31,10 +34,19 @@ export default function QualityImprovementPage() {
 
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState({
     qi_type: "all", status: "all", priority: "all", project: "all",
     risk: "all", action: "all", club: "all", team: "all",
+    awaiting: false,
   });
+
+  useEffect(() => {
+    if (searchParams.get("alert") === "awaiting_decision") {
+      setFilters((f) => ({ ...f, awaiting: true }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<QiItem | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<QiItem | null>(null);
