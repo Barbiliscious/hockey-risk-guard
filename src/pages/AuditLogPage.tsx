@@ -8,6 +8,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import { downloadCsv } from "@/lib/csv";
 
 export type AuditRow = {
   id: string;
@@ -61,9 +64,24 @@ export default function AuditLogPage() {
 
   return (
     <div className="p-6 space-y-4 max-w-[1400px] mx-auto">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Risk Audit Log</h1>
-        <p className="text-sm text-muted-foreground">{filtered.length} entries</p>
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Risk Audit Log</h1>
+          <p className="text-sm text-muted-foreground">{filtered.length} entries</p>
+        </div>
+        <Button variant="outline" onClick={() => downloadCsv("risk_audit_log", filtered, [
+          { header: "When", value: (r) => r.created_at },
+          { header: "User", value: (r) => r.user_name ?? r.user_id ?? "" },
+          { header: "Role", value: (r) => r.user_role ?? "" },
+          { header: "Action", value: (r) => r.action_type ?? "" },
+          { header: "Entity Type", value: (r) => r.entity_type ?? "" },
+          { header: "Entity ID", value: (r) => r.entity_id ?? "" },
+          { header: "Field", value: (r) => r.field_changed ?? "" },
+          { header: "Previous", value: (r) => r.previous_value ?? "" },
+          { header: "New", value: (r) => r.new_value ?? "" },
+          { header: "Reason", value: (r) => r.reason_for_change ?? "" },
+          { header: "Sensitive", value: (r) => (r.is_sensitive ? "Yes" : "No") },
+        ])}><Download className="h-4 w-4" /> Export CSV</Button>
       </div>
 
       <Card>

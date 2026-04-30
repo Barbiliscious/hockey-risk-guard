@@ -1,6 +1,7 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Archive, History, Search, ChevronRight, ChevronDown, ClipboardCheck } from "lucide-react";
+import { Plus, Pencil, Archive, History, Search, ChevronRight, ChevronDown, ClipboardCheck, Download, Printer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useDropdowns } from "@/hooks/useDropdowns";
 import { useTeams } from "@/hooks/useTeams";
@@ -13,6 +14,10 @@ import { RiskRowExpanded } from "@/components/RiskRowExpanded";
 import { RiskReviewDialog } from "@/components/RiskReviewDialog";
 import { BeSmartActionFormDialog } from "@/components/BeSmartActionFormDialog";
 import { QiItemFormDialog } from "@/components/QiItemFormDialog";
+import { PrintHeader } from "@/components/PrintHeader";
+import { useBeSmartActions } from "@/hooks/useBeSmartActions";
+import { useQiItems } from "@/hooks/useQiItems";
+import { downloadCsv } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -67,11 +72,13 @@ export default function RiskRegisterPage() {
   const { data: teams = [] } = useTeams();
   const { data: clubs = [] } = useClubs();
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({
     category: "all", type: "all", level: "all", owner: "all", status: "all", team: "all", club: "all",
     inherent: "all", residual: "all",
+    alert: "all" as "all" | "overdue" | "high_no_action" | "above_target" | "no_controls" | "no_owner" | "has_actions" | "has_qi",
   });
   const [editing, setEditing] = useState<Risk | null>(null);
   const [creating, setCreating] = useState(false);
@@ -81,6 +88,15 @@ export default function RiskRegisterPage() {
   const [reviewFor, setReviewFor] = useState<Risk | null>(null);
   const [postReviewAction, setPostReviewAction] = useState<string | null>(null);
   const [postReviewQi, setPostReviewQi] = useState<string | null>(null);
+
+  // Deep-link from Dashboard alerts
+  useEffect(() => {
+    const a = searchParams.get("alert");
+    if (a && a !== filters.alert) {
+      setFilters((f) => ({ ...f, alert: a as any }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const { data: risks = [], isLoading } = useQuery({
     queryKey: ["rg_risk_register", showArchived],
@@ -92,8 +108,25 @@ export default function RiskRegisterPage() {
     },
   });
 
+  const { data: actionsAll = [] } = useBeSmartActions({ includeArchived: false });
+  const { data: qiAll = [] } = useQiItems({ includeArchived: false });
+
+  const actionCountByRisk = useMemo(() => {
+    const m = new Map<string, number>();
+    actionsAll.forEach((a) => a.linked_risk_id && m.set(a.linked_risk_id, (m.get(a.linked_risk_id) ?? 0) + 1));
+    return m;
+  }, [actionsAll]);
+  const qiCountByRisk = useMemo(() => {
+    const m = new Map<string, number>();
+    qiAll.forEach((q) => q.linked_risk_id && m.set(q.linked_risk_id, (m.get(q.linked_risk_id) ?? 0) + 1));
+    return m;
+  }, [qiAll]);
+
   const teamName = (id?: string | null) => teams.find((t) => t.id === id)?.name ?? "";
   const clubName = (id?: string | null) => clubs.find((c) => c.id === id)?.name ?? "";
+
+  const RATING_SCORE: Record<string, number> = { Low: 1, Medium: 2, High: 3, "Very High": 4 };
+  const today = new Date().toISOString().slice(0, 10);
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -109,13 +142,39 @@ export default function RiskRegisterPage() {
       if (filters.club !== "all" && r.club_id !== filters.club) return false;
       if (filters.inherent !== "all" && inherent !== filters.inherent) return false;
       if (filters.residual !== "all" && residual !== filters.residual) return false;
+
+      // Alert filters
+      if (filters.alert !== "all") {
+        const notClosed = (r.status ?? "") !== "Closed";
+        const actionCount = actionCountByRisk.get(r.id) ?? 0;
+        const qiCount = qiCountByRisk.get(r.id) ?? 0;
+        const tgt = r.risk_target_rating ? RATING_SCORE[r.risk_target_rating] : null;
+        const res = residual ? RATING_SCORE[residual] : null;
+        switch (filters.alert) {
+          case "overdue":
+            if (!(r.next_review_date && r.next_review_date < today && notClosed)) return false; break;
+          case "high_no_action":
+            if (!((residual === "High" || residual === "Very High") && notClosed && actionCount === 0)) return false; break;
+          case "above_target":
+            if (!(tgt && res && res > tgt && notClosed)) return false; break;
+          case "no_controls":
+            if (!((!r.controls_in_place || r.controls_in_place.trim() === "") && notClosed)) return false; break;
+          case "no_owner":
+            if (!((!r.risk_owner || r.risk_owner.trim() === "") && notClosed)) return false; break;
+          case "has_actions":
+            if (actionCount === 0) return false; break;
+          case "has_qi":
+            if (qiCount === 0) return false; break;
+        }
+      }
+
       if (s) {
         const hay = `${r.risk_external_id} ${r.risk_event} ${r.consequences ?? ""}`.toLowerCase();
         if (!hay.includes(s)) return false;
       }
       return true;
     });
-  }, [risks, filters, search, matrix]);
+  }, [risks, filters, search, matrix, actionCountByRisk, qiCountByRisk]);
 
   const archive = useMutation({
     mutationFn: async (risk: Risk) => {
@@ -136,9 +195,56 @@ export default function RiskRegisterPage() {
 
   const opt = (key: string) => (dropdowns[key] ?? []).map((d) => d.value);
 
+  const exportCsv = () => {
+    downloadCsv(
+      "risk_register",
+      filtered,
+      [
+        { header: "Risk ID", value: (r) => r.risk_external_id },
+        { header: "Risk Category", value: (r) => r.risk_category ?? "" },
+        { header: "Risk Type", value: (r) => r.risk_type ?? "" },
+        { header: "Level", value: (r) => r.level ?? "" },
+        { header: "Risk Event", value: (r) => r.risk_event },
+        { header: "Consequences", value: (r) => r.consequences ?? "" },
+        { header: "Inherent Likelihood", value: (r) => r.inherent_likelihood_score ?? "" },
+        { header: "Inherent Consequence", value: (r) => r.inherent_consequence_score ?? "" },
+        { header: "Live Inherent Rating", value: (r) => lookupRating(matrix, r.inherent_likelihood_score, r.inherent_consequence_score) ?? "" },
+        { header: "Current Risk Summary", value: (r) => r.current_risk_summary ?? "" },
+        { header: "Controls in Place", value: (r) => r.controls_in_place ?? "" },
+        { header: "Residual Likelihood", value: (r) => r.residual_likelihood_score ?? "" },
+        { header: "Residual Consequence", value: (r) => r.residual_consequence_score ?? "" },
+        { header: "Live Residual Rating", value: (r) => lookupRating(matrix, r.residual_likelihood_score, r.residual_consequence_score) ?? "" },
+        { header: "Risk Target Rating", value: (r) => r.risk_target_rating ?? "" },
+        { header: "Risk Target Description", value: (r) => r.risk_target_description ?? "" },
+        {
+          header: "Residual Above Target",
+          value: (r) => {
+            const res = lookupRating(matrix, r.residual_likelihood_score, r.residual_consequence_score);
+            const tgt = r.risk_target_rating;
+            if (!res || !tgt) return "";
+            return RATING_SCORE[res] > RATING_SCORE[tgt] ? "Yes" : "No";
+          },
+        },
+        { header: "Treatment Plan", value: (r) => r.treatment_plan ?? "" },
+        { header: "Risk Owner", value: (r) => r.risk_owner ?? "" },
+        { header: "Status", value: (r) => r.status ?? "" },
+        { header: "Review Frequency", value: (r) => r.review_frequency ?? "" },
+        { header: "Last Reviewed Date", value: (r) => r.last_reviewed_date ?? "" },
+        { header: "Next Review Date", value: (r) => r.next_review_date ?? "" },
+        { header: "Club", value: (r) => clubName(r.club_id) },
+        { header: "Team", value: (r) => teamName(r.team_id) },
+        { header: "Linked BE SMART Action Count", value: (r) => actionCountByRisk.get(r.id) ?? 0 },
+        { header: "Linked QI Item Count", value: (r) => qiCountByRisk.get(r.id) ?? 0 },
+        { header: "Evidence Notes", value: (r) => r.evidence_notes ?? "" },
+        { header: "Archived", value: (r) => (r.is_archived ? "Yes" : "No") },
+      ],
+    );
+  };
+
   return (
     <div className="p-6 space-y-4 max-w-[1600px] mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <PrintHeader title="Risk Register" subtitle={`${filtered.length} risks`} />
+      <div className="flex flex-wrap items-center justify-between gap-2 no-print">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Risk Register</h1>
           <p className="text-sm text-muted-foreground">
@@ -151,14 +257,16 @@ export default function RiskRegisterPage() {
             <Switch id="archived" checked={showArchived} onCheckedChange={setShowArchived} />
             <Label htmlFor="archived">Show archived</Label>
           </div>
+          <Button variant="outline" onClick={exportCsv}><Download className="h-4 w-4" /> Export CSV</Button>
+          <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" /> Print</Button>
           <Button onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" /> Add Risk
           </Button>
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-3">
+      <Card className="no-print">
+        <CardContent className="p-3 space-y-2">
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-10 gap-2">
             <div className="lg:col-span-2 relative">
               <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
@@ -173,6 +281,35 @@ export default function RiskRegisterPage() {
             <Filter label="Team" value={filters.team} onChange={(v) => setFilters({ ...filters, team: v })} options={teams.map((t) => ({ label: t.name, value: t.id }))} />
             <Filter label="Inherent" value={filters.inherent} onChange={(v) => setFilters({ ...filters, inherent: v })} options={RATINGS} />
             <Filter label="Residual" value={filters.residual} onChange={(v) => setFilters({ ...filters, residual: v })} options={RATINGS} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t">
+            <Label className="text-xs text-muted-foreground mr-1">Quick filters:</Label>
+            {([
+              ["all", "All"],
+              ["overdue", "Overdue Review"],
+              ["high_no_action", "High/Very High • No Action"],
+              ["above_target", "Residual Above Target"],
+              ["no_controls", "No Controls"],
+              ["no_owner", "No Owner"],
+              ["has_actions", "Has Actions"],
+              ["has_qi", "Has QI"],
+            ] as const).map(([k, label]) => (
+              <Button
+                key={k}
+                size="sm"
+                variant={filters.alert === k ? "default" : "outline"}
+                onClick={() => {
+                  setFilters((f) => ({ ...f, alert: k as any }));
+                  if (k === "all") {
+                    const sp = new URLSearchParams(searchParams);
+                    sp.delete("alert");
+                    setSearchParams(sp, { replace: true });
+                  }
+                }}
+              >
+                {label}
+              </Button>
+            ))}
           </div>
         </CardContent>
       </Card>

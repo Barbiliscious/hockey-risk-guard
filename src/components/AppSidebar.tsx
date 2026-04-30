@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { ListChecks, Grid3x3, History, ShieldAlert, Target, Lightbulb } from "lucide-react";
+import { ListChecks, Grid3x3, History, ShieldAlert, Target, Lightbulb, LayoutDashboard } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -14,6 +14,7 @@ import {
 import { useRiskAccess } from "@/hooks/useRiskAccess";
 
 const items = [
+  { title: "Dashboard", url: "/risk/dashboard", icon: LayoutDashboard },
   { title: "Risk Register", url: "/risk/register", icon: ListChecks },
   { title: "BE SMART Actions", url: "/risk/actions", icon: Target },
   { title: "Quality Improvement", url: "/risk/qi", icon: Lightbulb },

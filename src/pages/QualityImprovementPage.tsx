@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Archive, MessageSquare, Search } from "lucide-react";
+import { Plus, Pencil, Archive, MessageSquare, Search, Download, Printer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQiItems, type QiItem } from "@/hooks/useQiItems";
 import { useDropdowns } from "@/hooks/useDropdowns";
@@ -21,6 +22,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { PrintHeader } from "@/components/PrintHeader";
+import { downloadCsv } from "@/lib/csv";
 
 export default function QualityImprovementPage() {
   const qc = useQueryClient();
@@ -31,10 +34,19 @@ export default function QualityImprovementPage() {
 
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
+  const [searchParams] = useSearchParams();
   const [filters, setFilters] = useState({
     qi_type: "all", status: "all", priority: "all", project: "all",
     risk: "all", action: "all", club: "all", team: "all",
+    awaiting: false,
   });
+
+  useEffect(() => {
+    if (searchParams.get("alert") === "awaiting_decision") {
+      setFilters((f) => ({ ...f, awaiting: true }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<QiItem | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<QiItem | null>(null);
@@ -81,6 +93,7 @@ export default function QualityImprovementPage() {
       if (filters.action !== "all" && r.linked_action_id !== filters.action) return false;
       if (filters.club !== "all" && r.club_id !== filters.club) return false;
       if (filters.team !== "all" && r.team_id !== filters.team) return false;
+      if (filters.awaiting && !["Logged","Under Review","Awaiting Decision"].includes(r.status ?? "")) return false;
       if (s) {
         const hay = `${r.qi_external_id} ${r.description} ${r.area ?? ""}`.toLowerCase();
         if (!hay.includes(s)) return false;
@@ -108,9 +121,36 @@ export default function QualityImprovementPage() {
 
   const opt = (key: string) => (dropdowns[key] ?? []).map((d: any) => d.value);
 
+  const exportCsv = () => {
+    downloadCsv("quality_improvement", filtered, [
+      { header: "QI ID", value: (r) => r.qi_external_id },
+      { header: "Date Logged", value: (r) => r.date_logged },
+      { header: "Logged By", value: (r) => r.logged_by ?? "" },
+      { header: "Source", value: (r) => r.source ?? "" },
+      { header: "QI Type", value: (r) => r.qi_type ?? "" },
+      { header: "Area", value: (r) => r.area ?? "" },
+      { header: "Description", value: (r) => r.description },
+      { header: "Reason / Background", value: (r) => r.reason_background ?? "" },
+      { header: "Linked Risk", value: (r) => riskLabel(r.linked_risk_id) },
+      { header: "Linked Action", value: (r) => actionLabel(r.linked_action_id) },
+      { header: "Related Project / Review", value: (r) => r.related_project_review ?? "" },
+      { header: "Priority", value: (r) => r.priority ?? "" },
+      { header: "Status", value: (r) => r.status },
+      { header: "Recommended Action", value: (r) => r.recommended_action ?? "" },
+      { header: "Owner / Reviewer", value: (r) => r.owner_reviewer ?? "" },
+      { header: "Review Trigger", value: (r) => r.review_trigger ?? "" },
+      { header: "Review Date", value: (r) => r.review_date ?? "" },
+      { header: "Outcome / Decision", value: (r) => r.outcome_decision ?? "" },
+      { header: "Date Closed", value: (r) => r.date_closed ?? "" },
+      { header: "Evidence Notes", value: (r) => r.evidence_notes ?? "" },
+      { header: "Archived", value: (r) => (r.is_archived ? "Yes" : "No") },
+    ]);
+  };
+
   return (
     <div className="p-6 space-y-4 max-w-[1400px] mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <PrintHeader title="Quality Improvement Register" subtitle={`${filtered.length} items`} />
+      <div className="flex flex-wrap items-center justify-between gap-2 no-print">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Quality Improvement Register</h1>
           <p className="text-sm text-muted-foreground">
@@ -122,13 +162,19 @@ export default function QualityImprovementPage() {
             <Switch id="archived" checked={showArchived} onCheckedChange={setShowArchived} />
             <Label htmlFor="archived">Show archived</Label>
           </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Switch id="awaiting" checked={filters.awaiting} onCheckedChange={(v) => setFilters({ ...filters, awaiting: v })} />
+            <Label htmlFor="awaiting">Awaiting decision</Label>
+          </div>
+          <Button variant="outline" onClick={exportCsv}><Download className="h-4 w-4" /> Export CSV</Button>
+          <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" /> Print</Button>
           <Button onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" /> Add QI Item
           </Button>
         </div>
       </div>
 
-      <Card>
+      <Card className="no-print">
         <CardContent className="p-3 grid grid-cols-2 md:grid-cols-5 gap-2">
           <div className="md:col-span-2 relative">
             <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />

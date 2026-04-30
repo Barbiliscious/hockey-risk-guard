@@ -120,3 +120,54 @@
   * { @apply border-border; }
   body { @apply bg-background text-foreground; }
 }
+
+/* ---------------------------------------------------------------- */
+/* Print-friendly styles (Phase 3)                                  */
+/* ---------------------------------------------------------------- */
+@media print {
+  @page { size: A4 landscape; margin: 12mm; }
+
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+  }
+
+  /* Hide chrome */
+  [data-sidebar="sidebar"],
+  header.bg-brand,
+  .no-print {
+    display: none !important;
+  }
+
+  main { overflow: visible !important; }
+
+  /* Reset surfaces to white */
+  .bg-card, .bg-background, .bg-muted, .bg-accent {
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; }
+  th, td {
+    border: 1px solid #999 !important;
+    padding: 4px 6px !important;
+    color: #000 !important;
+    background: #fff !important;
+    font-size: 9.5pt;
+    vertical-align: top;
+  }
+  thead { background: #eee !important; }
+
+  /* Risk badges in print: keep readable on white */
+  .bg-risk-low-bg     { background: #e8f0fb !important; color: #1d4ed8 !important; }
+  .bg-risk-medium-bg  { background: #fdf2d9 !important; color: #b45309 !important; }
+  .bg-risk-high-bg    { background: #ffe1cc !important; color: #c2410c !important; }
+  .bg-risk-veryhigh-bg{ background: #fbe1e6 !important; color: #b91c1c !important; }
+
+  .print-only { display: block !important; }
+}
+
+.print-only { display: none; }

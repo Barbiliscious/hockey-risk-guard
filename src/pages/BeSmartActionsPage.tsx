@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Archive, MessageSquare, Search } from "lucide-react";
+import { Plus, Pencil, Archive, MessageSquare, Search, Download, Printer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useBeSmartActions, type BeSmartAction } from "@/hooks/useBeSmartActions";
 import { useDropdowns } from "@/hooks/useDropdowns";
@@ -21,6 +21,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { PrintHeader } from "@/components/PrintHeader";
+import { downloadCsv } from "@/lib/csv";
 
 export default function BeSmartActionsPage() {
   const qc = useQueryClient();
@@ -31,7 +33,10 @@ export default function BeSmartActionsPage() {
 
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState({ status: "all", risk: "all", club: "all", team: "all" });
+  const [filters, setFilters] = useState({
+    status: "all", risk: "all", club: "all", team: "all",
+    due: "all" as "all" | "overdue" | "due30" | "no_date" | "complete",
+  });
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<BeSmartAction | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<BeSmartAction | null>(null);
@@ -58,6 +63,9 @@ export default function BeSmartActionsPage() {
   const teamName = (id?: string | null) => teams.find((t) => t.id === id)?.name ?? "";
   const clubName = (id?: string | null) => clubs.find((c) => c.id === id)?.name ?? "";
 
+  const today = new Date();
+  const in30 = new Date(); in30.setDate(today.getDate() + 30);
+
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
     return rows.filter((r) => {
@@ -65,12 +73,23 @@ export default function BeSmartActionsPage() {
       if (filters.risk !== "all" && r.linked_risk_id !== filters.risk) return false;
       if (filters.club !== "all" && r.club_id !== filters.club) return false;
       if (filters.team !== "all" && r.team_id !== filters.team) return false;
+      if (filters.due !== "all") {
+        const d = r.due_date ? new Date(r.due_date) : null;
+        const isComplete = ["Complete","Completed","Closed"].includes(r.status ?? "");
+        switch (filters.due) {
+          case "overdue":  if (!(d && d < today && !isComplete)) return false; break;
+          case "due30":    if (!(d && d >= today && d <= in30 && !isComplete)) return false; break;
+          case "no_date":  if (d) return false; break;
+          case "complete": if (!isComplete) return false; break;
+        }
+      }
       if (s) {
         const hay = `${r.action_external_id} ${r.action_title} ${r.responsible_person_role ?? ""}`.toLowerCase();
         if (!hay.includes(s)) return false;
       }
       return true;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, filters, search]);
 
   const archive = useMutation({
@@ -92,9 +111,35 @@ export default function BeSmartActionsPage() {
 
   const statusOptions = (dropdowns.action_status ?? []).map((d: any) => d.value);
 
+  const exportCsv = () => {
+    downloadCsv("be_smart_actions", filtered, [
+      { header: "Action ID", value: (r) => r.action_external_id },
+      { header: "Title", value: (r) => r.action_title },
+      { header: "Linked Risk", value: (r) => riskLabel(r.linked_risk_id) },
+      { header: "Baseline", value: (r) => r.baseline ?? "" },
+      { header: "Evaluate", value: (r) => r.evaluate ?? "" },
+      { header: "Specific", value: (r) => r.specific ?? "" },
+      { header: "Measurable", value: (r) => r.measurable ?? "" },
+      { header: "Achievable", value: (r) => r.achievable ?? "" },
+      { header: "Relevant", value: (r) => r.relevant ?? "" },
+      { header: "Time-based", value: (r) => r.time_based ?? "" },
+      { header: "Responsible Person / Role", value: (r) => r.responsible_person_role ?? "" },
+      { header: "Resources Needed", value: (r) => r.resources_needed ?? "" },
+      { header: "Due Date", value: (r) => r.due_date ?? "" },
+      { header: "Status", value: (r) => r.status },
+      { header: "Progress Notes", value: (r) => r.progress_notes ?? "" },
+      { header: "Date Completed", value: (r) => r.date_completed ?? "" },
+      { header: "Club", value: (r) => clubName(r.club_id) },
+      { header: "Team", value: (r) => teamName(r.team_id) },
+      { header: "Evidence Notes", value: (r) => r.evidence_notes ?? "" },
+      { header: "Archived", value: (r) => (r.is_archived ? "Yes" : "No") },
+    ]);
+  };
+
   return (
     <div className="p-6 space-y-4 max-w-[1400px] mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <PrintHeader title="BE SMART Actions" subtitle={`${filtered.length} actions`} />
+      <div className="flex flex-wrap items-center justify-between gap-2 no-print">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">BE SMART Actions</h1>
           <p className="text-sm text-muted-foreground">
@@ -106,13 +151,15 @@ export default function BeSmartActionsPage() {
             <Switch id="archived" checked={showArchived} onCheckedChange={setShowArchived} />
             <Label htmlFor="archived">Show archived</Label>
           </div>
+          <Button variant="outline" onClick={exportCsv}><Download className="h-4 w-4" /> Export CSV</Button>
+          <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" /> Print</Button>
           <Button onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" /> Add Action
           </Button>
         </div>
       </div>
 
-      <Card>
+      <Card className="no-print">
         <CardContent className="p-3 grid grid-cols-2 md:grid-cols-5 gap-2">
           <div className="md:col-span-2 relative">
             <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
@@ -126,6 +173,17 @@ export default function BeSmartActionsPage() {
             options={(risks as any[]).map((r) => ({ label: r.risk_external_id, value: r.id }))}
           />
           <FilterSelect label="Club" value={filters.club} onChange={(v) => setFilters({ ...filters, club: v })} options={clubs.map((c) => ({ label: c.name, value: c.id }))} />
+          <FilterSelect
+            label="Due"
+            value={filters.due}
+            onChange={(v) => setFilters({ ...filters, due: v as any })}
+            options={[
+              { label: "Overdue", value: "overdue" },
+              { label: "Due next 30 days", value: "due30" },
+              { label: "No due date", value: "no_date" },
+              { label: "Complete", value: "complete" },
+            ]}
+          />
         </CardContent>
       </Card>
 
