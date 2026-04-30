@@ -1,86 +1,98 @@
 
-# Phase 1 — Hockey Risk Guard Foundation
+# Phase 1 Fixes — Hockey Risk Guard
 
-Build only Phase 1. No BE SMART, QI, reviews, comments, dashboard, exports, matrix edit, or user management.
+Targeted refinements to the existing Phase 1 build. No Phase 2 features.
 
-## 0. Connect to existing Supabase
-- Install `@supabase/supabase-js`, create `src/integrations/supabase/client.ts` using `huglmnjlhhngezsrqaok.supabase.co` + provided anon key in `.env`.
-- Service role key stored as Lovable secret only (never bundled).
-- **Verify first**: read `public.user_roles` schema and check whether `has_risk_access` / `can_edit_risk_matrix` exist. If missing, add them in `public` (with your confirmation) so both apps share them.
+## 1. Database migration (`supabase_migrations/phase1_fixes.sql`)
 
-## 1. Schema (migration, `rg_` prefix only)
-Create if not exists:
-- `rg_risk_matrix` (5×5 lookup: likelihood_score+label, consequence_score+label, rating)
-- `rg_risk_guidance_sections` (section_key, title, content, sort_order)
-- `rg_dropdown_values` (list_type, value, description, active, sort_order)
-- `rg_risk_register` — stores **scores only**, never inherent/residual rating text
-- `rg_risk_reviews` — created now with all snapshot columns, **no UI yet**
-- `rg_audit_log` (action_type, entity_type, entity_id, field_changed, previous/new value, reason, is_sensitive, ip, device)
+**Auto Risk ID generation (DB-side, safe against imports/API):**
+- Create `rg_risk_id_seq` sequence starting at 11 (R-001..R-010 already used by seed).
+- Function `rg_next_risk_external_id()` returns `'R-' || lpad(nextval('rg_risk_id_seq')::text, 3, '0')`.
+- Alter `rg_risk_register.risk_external_id` to `DEFAULT public.rg_next_risk_external_id()` and keep the existing UNIQUE constraint.
+- Initialise sequence with `setval` to `GREATEST(11, max+1)` of existing numeric suffixes parsed from `risk_external_id` (so re-running is safe).
 
-Indexes on `risk_external_id`, `is_archived`, `status`, `team_id`, plus `(likelihood_score, consequence_score)` on the matrix.
+**Default status:**
+- Already `DEFAULT 'Open'` at the column level — confirmed. No change needed in DB; UI will rely on it (and not send status on insert when blank).
 
-`team_id` on `rg_risk_register` is nullable with FK to `public.teams` if that table is reachable.
+**Clubs support (new tables):**
+- `rg_clubs (id uuid pk, name text not null unique, short_name text, active bool default true, created_at, updated_at)`.
+- `rg_team_club_links (id uuid pk, club_id uuid → rg_clubs(id) on delete cascade, team_id uuid → public.teams(id) on delete cascade, active bool default true, created_at, unique(club_id, team_id))`.
+- Alter `rg_risk_register` to add `club_id uuid REFERENCES rg_clubs(id) ON DELETE SET NULL` (nullable). Index on `club_id`.
+- `updated_at` trigger on `rg_clubs`.
 
-## 2. RLS using existing helpers
-Enable RLS on every `rg_*` table. Policies call the existing helpers — never `profiles.role`:
-- **SELECT** on matrix, guidance, dropdowns, risk register, risk reviews, audit log → `has_risk_access(auth.uid())`
-- **INSERT/UPDATE** on `rg_risk_register` → `has_risk_access(auth.uid())` (archive is a soft update)
-- **INSERT** on `rg_audit_log` → `has_risk_access(auth.uid())`; **UPDATE/DELETE** denied to all
-- **No DELETE** policy on `rg_risk_register` (hard delete blocked at DB level)
-- Matrix/guidance/dropdowns: SELECT-only this phase (edit policies in Phase 4)
+**RLS for new tables:**
+- Enable RLS on `rg_clubs` and `rg_team_club_links`.
+- SELECT for `has_risk_access(auth.uid())` on both.
+- INSERT/UPDATE on `rg_clubs` and `rg_team_club_links` gated by `has_risk_access` (admin-only edit UI comes in Phase 4; for now allow risk users to manage minimal seed via SQL or future screens — no UI exposed this phase beyond using them).
 
-Result: admin-only or umpire-only users get nothing from any `rg_*` table. Super_admin / president / committee get full Phase 1 access.
+**Seed `rg_clubs`** (idempotent, `ON CONFLICT (name) DO NOTHING`):
+Ballarat, Eureka, Grampians, WestVic, East Grampians, Other / Unknown.
 
-## 3. Seed data (one-off, idempotent)
-- 25 matrix rows exactly as specified (Rare→Almost Certain × Insignificant→Severe → Low/Medium/High/Very High).
-- Guidance sections: Likelihood scale, Consequence scale, Risk Response Guide (Very High / High / Medium / Low text as provided).
-- Dropdowns for Risk Category, Risk Type, Level, Risk Status, Review Frequency, Risk Owner — exact lists you provided.
-- 10 sample risks (player injury, concussion, child safety, WWCC, umpire abuse, unsafe venue, weather, finals dispute, volunteer burnout, privacy/data) with realistic inherent/residual scores, controls, owners, next review dates.
+**Audit logging:**
+- The existing `rg_audit_risk_register()` trigger uses `to_jsonb(OLD/NEW)` field-by-field diff, so the new `club_id` column is automatically logged. The auto-generated `risk_external_id` on INSERT is already captured (`new_value = NEW.risk_external_id`). No trigger code change needed.
 
-## 4. App shell
-- React Router with `react-router-dom`. Add `AuthProvider` using Supabase `onAuthStateChange` (set listener BEFORE `getSession`).
-- Routes: `/auth`, `/reset-password`, `/` (redirects), `/risk` (Risk Guard area).
-- Layout: red top bar `#CE2029` with "Hockey Risk Guard" + user menu, collapsible shadcn sidebar with Risk Guard nav (Risk Register, Risk Matrix & Guidance, Audit Log).
-- `<RiskAccessGate>` wrapper queries `has_risk_access(auth.uid())` via RPC; if false, shows "You don't have Risk Management access — contact your administrator."
-- Sidebar nav items only render when `has_risk_access` is true.
-- Theme tokens in `index.css`: red primary `#CE2029`, white surfaces, slate borders. Risk badge classes: blue/amber/orange/red for Low/Medium/High/Very High. Light + dark.
+## 2. Frontend — `src/components/RiskFormDialog.tsx`
 
-## 5. Risk Matrix & Guidance page (read-only)
-- 5×5 grid, columns = Consequence 1–5, rows = Likelihood 1–5, cells coloured by rating with the rating label.
-- Likelihood scale, Consequence scale, Risk Response Guide rendered from `rg_risk_guidance_sections`.
-- Banner: "Edit mode is available in a later phase."
+- Remove `risk_external_id` from the zod schema (or mark optional and never send on create).
+- On **Add**: hide the Risk ID field entirely; show helper text "Risk ID will be generated automatically when saved." Do not include `risk_external_id` in the insert payload — DB default fills it. After insert, invalidate queries (existing) so the new R-### appears.
+- On **Edit**: show Risk ID as a read-only, disabled `Input` (display only, never sent in update payload).
+- Default `status` to `"Open"` for new risks (already the default in `useForm.values`); ensure on insert if blank we omit it so DB default applies.
+- Replace `ScoreSelect` numeric items with labelled items using the loaded `rg_risk_matrix`:
+  - Likelihood: `1 — Rare … 5 — Almost Certain` (derived from distinct `likelihood_score`/`likelihood_label` in matrix).
+  - Consequence: `1 — Insignificant … 5 — Severe`.
+  - Stored value remains the integer score.
+  - Trigger `<SelectValue>` displays the same `"N — Label"` string.
+- Add **Club** select (optional) using a new `useClubs()` hook.
+- Add **Team** select behaviour:
+  - New `useTeamClubLinks()` hook fetches `rg_team_club_links`.
+  - When a Club is selected, filter `teams` to those linked to the club. If no links exist for that club, show all teams (graceful fallback) with a small hint.
+  - When no Club selected, **disable** the Team select with placeholder "Select a Club first (optional)" — chosen as the cleaner option per request.
+  - Allow clearing both back to "—" (none).
 
-## 6. Risk Register page
-- Table with all listed columns. **Inherent Risk Rank** and **Residual Risk Rank** computed client-side via a `useRiskMatrix()` hook that loads `rg_risk_matrix` once and resolves `(L,C) → rating`.
-- Filters: Category, Type, Level, Owner, Status, Team, Inherent Rating, Residual Rating; text search across Risk ID + Risk/Event + Consequences; sort on any column.
-- Default view hides `is_archived = true`; toggle to show archived.
-- **Add Risk** and **Edit Risk** dialogs (react-hook-form + zod): all fields, dropdowns from `rg_dropdown_values`, live computed rating preview as the user picks scores, Team picker from `public.teams` if accessible.
-- **Archive** action: sets `is_archived=true`, `archived_at=now()`, `archived_by=auth.uid()`. No hard delete in UI.
-- **View Audit History** per row: drawer filtered to that risk's audit rows.
+## 3. Frontend — `src/pages/RiskRegisterPage.tsx`
 
-## 7. Audit logging
-- Database trigger `rg_audit_risk_register()` on INSERT/UPDATE of `rg_risk_register`:
-  - INSERT → one audit row, `action_type='create'`.
-  - UPDATE → one audit row per changed field, capturing previous/new value.
-  - Archive (UPDATE setting `is_archived=true`) → additional row with `action_type='archive'`.
-  - Captures `auth.uid()`, joins to `profiles` for `user_name`, joins to `user_roles` for `user_role`.
-- Reason for change: optional in Phase 1 (set via a session GUC `rg.reason_for_change` from the client when present), mandatory fields land in Phase 4.
-- IP/device captured from session GUCs set by the client on each request where available.
+- Add `club_id` to the `Risk` type.
+- Query selects `*` already covers `club_id`.
+- New column **Club** in the table (between Team and Evidence/Notes — or before Team, grouping organisationally). Render via club lookup.
+- New **Club** filter in the filter bar (uses `useClubs()`); options are active clubs.
+- Display likelihood/consequence cells as "`N — Label`" using a small helper that reads from the matrix (table view: keep "Inh L" / "Inh C" header but render labelled value; if column space is tight, render `N` with tooltip showing label — pick labelled inline since user asked "where practical").
 
-## 8. Audit Log page
-- Table of `rg_audit_log` ordered by `created_at desc`.
-- Filters: user, entity type, action type, date range, "Sensitive only".
-- Read-only.
+## 4. New hooks
 
-## 9. Acceptance tests covered
-All 14 tests in your brief — I'll walk through each in the post-build summary.
+- `src/hooks/useClubs.ts` — react-query fetch from `rg_clubs` where `active = true`, ordered by name.
+- `src/hooks/useTeamClubLinks.ts` — react-query fetch from `rg_team_club_links` where `active = true`. Provides `teamsForClub(clubId)` helper.
+- Extend `useRiskMatrix.ts` with helpers `likelihoodOptions()` and `consequenceOptions()` returning `[{score, label, display: "1 — Rare"}]` derived from matrix rows (deduped).
 
-## Out of scope (Phase 1)
-BE SMART, QI, reviews UI, comments, dashboard, alerts, exports, matrix/guidance edit, impact preview, user management, "Clear sample data".
+## 5. Acceptance test mapping
 
-## After-build summary will include
-What was built · new tables · existing tables reused (`profiles`, `teams`, `user_roles` + helpers) · RLS policies · how the live rating lookup works · how to run each acceptance test · limitations and assumptions (helper-function verification result, team FK reachability, reason-for-change handling deferred to Phase 4).
+1. Risk ID field hidden on Add, read-only on Edit, helper text shown.
+2. Insert with no `risk_external_id` → DB default produces next R-### (R-011 first).
+3. Likelihood select shows "3 — Possible".
+4. Consequence select shows "2 — Minor".
+5. New risk gets `status = 'Open'` (column default).
+6. Club select present and optional.
+7. Team select present and optional.
+8. Selecting a Club filters Team list via `rg_team_club_links`.
+9. Save with no Club / no Team works (both nullable).
+10. Save with Club + Team works.
+11. Existing risks (R-001..R-010) unaffected — their `risk_external_id` values preserved; sequence starts above max.
+12. Umpire Portal tables untouched (only new `rg_*` tables created; `public.teams` only referenced via FK).
+13. Audit log records `club_id`, `team_id`, status changes, and create rows with generated ID via existing trigger.
 
----
+## 6. Files to create / change
 
-**One thing to confirm before approval:** if `has_risk_access` / `can_edit_risk_matrix` don't yet exist in your Supabase, do you want me to create them in `public` as part of Phase 1, or pause and have you add them on the Umpire Portal side first?
+**Create**
+- `supabase_migrations/phase1_fixes.sql`
+- `src/hooks/useClubs.ts`
+- `src/hooks/useTeamClubLinks.ts`
+
+**Edit**
+- `src/hooks/useRiskMatrix.ts` — add option builders.
+- `src/components/RiskFormDialog.tsx` — hide/readonly Risk ID, labelled scores, Club field, Team filtering, default Open.
+- `src/pages/RiskRegisterPage.tsx` — add Club column + filter, `club_id` in Risk type, labelled L/C cells.
+
+## Out of scope (still deferred to later phases)
+BE SMART, QI, reviews UI, comments, dashboard, alerts, exports, matrix/guidance edit UI, club admin screen, user management.
+
+## Note
+You will need to run `supabase_migrations/phase1_fixes.sql` in the Supabase SQL editor after I make the code changes. I'll flag this clearly in the post-build summary.
