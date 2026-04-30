@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -6,7 +6,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useDropdowns } from "@/hooks/useDropdowns";
 import { useTeams } from "@/hooks/useTeams";
-import { useRiskMatrix, lookupRating } from "@/hooks/useRiskMatrix";
+import { useClubs } from "@/hooks/useClubs";
+import { useTeamClubLinks } from "@/hooks/useTeamClubLinks";
+import {
+  useRiskMatrix,
+  lookupRating,
+  likelihoodOptions,
+  consequenceOptions,
+} from "@/hooks/useRiskMatrix";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +24,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useToast } from "@/hooks/use-toast";
 import type { Risk } from "@/pages/RiskRegisterPage";
 
+const NONE = "__none__";
+
 const schema = z.object({
-  risk_external_id: z.string().min(1, "Risk ID required"),
   risk_event: z.string().min(1, "Required"),
   risk_category: z.string().optional(),
   risk_type: z.string().optional(),
@@ -37,6 +45,7 @@ const schema = z.object({
   status: z.string().optional(),
   review_frequency: z.string().optional(),
   next_review_date: z.string().optional(),
+  club_id: z.string().optional(),
   team_id: z.string().optional(),
   evidence_notes: z.string().optional(),
 });
@@ -54,14 +63,16 @@ export function RiskFormDialog({
 }) {
   const { data: dropdowns = {} } = useDropdowns();
   const { data: teams = [] } = useTeams();
+  const { data: clubs = [] } = useClubs();
+  const { teamIdsForClub } = useTeamClubLinks();
   const { data: matrix = [] } = useRiskMatrix();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const isEdit = !!risk;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     values: {
-      risk_external_id: risk?.risk_external_id ?? "",
       risk_event: risk?.risk_event ?? "",
       risk_category: risk?.risk_category ?? "",
       risk_type: risk?.risk_type ?? "",
@@ -80,6 +91,7 @@ export function RiskFormDialog({
       status: risk?.status ?? "Open",
       review_frequency: risk?.review_frequency ?? "",
       next_review_date: risk?.next_review_date ?? "",
+      club_id: risk?.club_id ?? "",
       team_id: risk?.team_id ?? "",
       evidence_notes: risk?.evidence_notes ?? "",
     },
@@ -95,16 +107,36 @@ export function RiskFormDialog({
     [matrix, watch.residual_likelihood_score, watch.residual_consequence_score],
   );
 
+  const lOpts = useMemo(() => likelihoodOptions(matrix), [matrix]);
+  const cOpts = useMemo(() => consequenceOptions(matrix), [matrix]);
+
+  // Team filtering by club
+  const selectedClub = watch.club_id || "";
+  const linkedTeamIds = teamIdsForClub(selectedClub);
+  const filteredTeams = useMemo(() => {
+    if (!selectedClub) return [];
+    if (linkedTeamIds.length === 0) return teams; // graceful fallback
+    return teams.filter((t) => linkedTeamIds.includes(t.id));
+  }, [teams, selectedClub, linkedTeamIds]);
+  const teamDisabled = !selectedClub;
+  const noLinksHint = !!selectedClub && linkedTeamIds.length === 0;
+
   const save = useMutation({
     mutationFn: async (values: FormValues) => {
       const payload: any = { ...values };
-      // Normalize empty strings to null
-      for (const k of Object.keys(payload)) if (payload[k] === "") payload[k] = null;
+      // Normalize empties: "" or NONE → null
+      for (const k of Object.keys(payload)) {
+        if (payload[k] === "" || payload[k] === NONE) payload[k] = null;
+      }
 
-      if (risk) {
+      if (isEdit && risk) {
+        // Never send risk_external_id on update
         const { error } = await supabase.from("rg_risk_register").update(payload).eq("id", risk.id);
         if (error) throw error;
       } else {
+        // Omit status if blank so DB default ('Open') applies
+        if (!payload.status) delete payload.status;
+        // Do NOT include risk_external_id — DB default generates next R-###
         const { error } = await supabase.from("rg_risk_register").insert(payload);
         if (error) throw error;
       }
@@ -112,7 +144,7 @@ export function RiskFormDialog({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["rg_risk_register"] });
       qc.invalidateQueries({ queryKey: ["rg_audit_log"] });
-      toast({ title: risk ? "Risk updated" : "Risk created" });
+      toast({ title: isEdit ? "Risk updated" : "Risk created" });
       onOpenChange(false);
     },
     onError: (err: any) => {
@@ -131,12 +163,21 @@ export function RiskFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{risk ? "Edit Risk" : "Add Risk"}</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit Risk" : "Add Risk"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit((v) => save.mutate(v))} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Risk ID" required>
-              <Input {...form.register("risk_external_id")} />
+            <Field label="Risk ID">
+              {isEdit ? (
+                <Input value={risk!.risk_external_id} disabled readOnly />
+              ) : (
+                <>
+                  <Input value="(auto)" disabled readOnly />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Risk ID will be generated automatically when saved.
+                  </p>
+                </>
+              )}
             </Field>
             <Field label="Status">
               <SelectField name="status" form={form} options={statuses.map((o) => o.value)} />
@@ -165,11 +206,11 @@ export function RiskFormDialog({
           <fieldset className="border rounded-md p-3">
             <legend className="px-1 text-sm font-medium">Inherent Risk</legend>
             <div className="grid grid-cols-3 gap-3 items-end">
-              <Field label="Likelihood (1–5)">
-                <ScoreSelect name="inherent_likelihood_score" form={form} />
+              <Field label="Likelihood">
+                <ScoreSelect name="inherent_likelihood_score" form={form} options={lOpts} />
               </Field>
-              <Field label="Consequence (1–5)">
-                <ScoreSelect name="inherent_consequence_score" form={form} />
+              <Field label="Consequence">
+                <ScoreSelect name="inherent_consequence_score" form={form} options={cOpts} />
               </Field>
               <div>
                 <Label className="text-xs">Calculated</Label>
@@ -188,11 +229,11 @@ export function RiskFormDialog({
           <fieldset className="border rounded-md p-3">
             <legend className="px-1 text-sm font-medium">Residual Risk</legend>
             <div className="grid grid-cols-3 gap-3 items-end">
-              <Field label="Likelihood (1–5)">
-                <ScoreSelect name="residual_likelihood_score" form={form} />
+              <Field label="Likelihood">
+                <ScoreSelect name="residual_likelihood_score" form={form} options={lOpts} />
               </Field>
-              <Field label="Consequence (1–5)">
-                <ScoreSelect name="residual_consequence_score" form={form} />
+              <Field label="Consequence">
+                <ScoreSelect name="residual_consequence_score" form={form} options={cOpts} />
               </Field>
               <div>
                 <Label className="text-xs">Calculated</Label>
@@ -216,12 +257,33 @@ export function RiskFormDialog({
             <Textarea rows={2} {...form.register("treatment_plan")} />
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <Field label="Next Review Date">
               <Input type="date" {...form.register("next_review_date")} />
             </Field>
+            <Field label="Club (optional)">
+              <SelectField
+                name="club_id"
+                form={form}
+                options={clubs.map((c) => ({ label: c.name, value: c.id }))}
+                allowClear
+                onChangeExtra={() => form.setValue("team_id", "", { shouldDirty: true })}
+              />
+            </Field>
             <Field label="Team (optional)">
-              <SelectField name="team_id" form={form} options={teams.map((t) => ({ label: t.name, value: t.id }))} />
+              <SelectField
+                name="team_id"
+                form={form}
+                options={filteredTeams.map((t) => ({ label: t.name, value: t.id }))}
+                allowClear
+                disabled={teamDisabled}
+                placeholder={teamDisabled ? "Select a Club first (optional)" : "—"}
+              />
+              {noLinksHint && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  No teams are linked to this club yet — showing all teams.
+                </p>
+              )}
             </Field>
           </div>
           <Field label="Evidence / Notes">
@@ -249,7 +311,15 @@ function Field({ label, required, children }: { label: string; required?: boolea
   );
 }
 
-function ScoreSelect({ name, form }: { name: any; form: any }) {
+function ScoreSelect({
+  name,
+  form,
+  options,
+}: {
+  name: any;
+  form: any;
+  options: { score: number; display: string }[];
+}) {
   const value = form.watch(name);
   return (
     <Select
@@ -258,8 +328,8 @@ function ScoreSelect({ name, form }: { name: any; form: any }) {
     >
       <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
       <SelectContent>
-        {[1, 2, 3, 4, 5].map((n) => (
-          <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+        {options.map((o) => (
+          <SelectItem key={o.score} value={String(o.score)}>{o.display}</SelectItem>
         ))}
       </SelectContent>
     </Select>
@@ -270,16 +340,34 @@ function SelectField({
   name,
   form,
   options,
+  allowClear,
+  disabled,
+  placeholder,
+  onChangeExtra,
 }: {
   name: any;
   form: any;
   options: Array<string | { label: string; value: string }>;
+  allowClear?: boolean;
+  disabled?: boolean;
+  placeholder?: string;
+  onChangeExtra?: () => void;
 }) {
-  const value = form.watch(name) ?? "";
+  const raw = form.watch(name) ?? "";
+  const value = raw === "" ? "" : raw;
   return (
-    <Select value={value} onValueChange={(v) => form.setValue(name, v, { shouldDirty: true })}>
-      <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+    <Select
+      value={value || undefined}
+      disabled={disabled}
+      onValueChange={(v) => {
+        const next = v === NONE ? "" : v;
+        form.setValue(name, next, { shouldDirty: true });
+        onChangeExtra?.();
+      }}
+    >
+      <SelectTrigger><SelectValue placeholder={placeholder ?? "—"} /></SelectTrigger>
       <SelectContent>
+        {allowClear && <SelectItem value={NONE}>—</SelectItem>}
         {options.map((o) => {
           const label = typeof o === "string" ? o : o.label;
           const val = typeof o === "string" ? o : o.value;
