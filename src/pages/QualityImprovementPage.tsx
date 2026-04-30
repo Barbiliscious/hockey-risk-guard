@@ -121,9 +121,36 @@ export default function QualityImprovementPage() {
 
   const opt = (key: string) => (dropdowns[key] ?? []).map((d: any) => d.value);
 
+  const exportCsv = () => {
+    downloadCsv("quality_improvement", filtered, [
+      { header: "QI ID", value: (r) => r.qi_external_id },
+      { header: "Date Logged", value: (r) => r.date_logged },
+      { header: "Logged By", value: (r) => r.logged_by ?? "" },
+      { header: "Source", value: (r) => r.source ?? "" },
+      { header: "QI Type", value: (r) => r.qi_type ?? "" },
+      { header: "Area", value: (r) => r.area ?? "" },
+      { header: "Description", value: (r) => r.description },
+      { header: "Reason / Background", value: (r) => r.reason_background ?? "" },
+      { header: "Linked Risk", value: (r) => riskLabel(r.linked_risk_id) },
+      { header: "Linked Action", value: (r) => actionLabel(r.linked_action_id) },
+      { header: "Related Project / Review", value: (r) => r.related_project_review ?? "" },
+      { header: "Priority", value: (r) => r.priority ?? "" },
+      { header: "Status", value: (r) => r.status },
+      { header: "Recommended Action", value: (r) => r.recommended_action ?? "" },
+      { header: "Owner / Reviewer", value: (r) => r.owner_reviewer ?? "" },
+      { header: "Review Trigger", value: (r) => r.review_trigger ?? "" },
+      { header: "Review Date", value: (r) => r.review_date ?? "" },
+      { header: "Outcome / Decision", value: (r) => r.outcome_decision ?? "" },
+      { header: "Date Closed", value: (r) => r.date_closed ?? "" },
+      { header: "Evidence Notes", value: (r) => r.evidence_notes ?? "" },
+      { header: "Archived", value: (r) => (r.is_archived ? "Yes" : "No") },
+    ]);
+  };
+
   return (
     <div className="p-6 space-y-4 max-w-[1400px] mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <PrintHeader title="Quality Improvement Register" subtitle={`${filtered.length} items`} />
+      <div className="flex flex-wrap items-center justify-between gap-2 no-print">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Quality Improvement Register</h1>
           <p className="text-sm text-muted-foreground">
@@ -135,13 +162,19 @@ export default function QualityImprovementPage() {
             <Switch id="archived" checked={showArchived} onCheckedChange={setShowArchived} />
             <Label htmlFor="archived">Show archived</Label>
           </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Switch id="awaiting" checked={filters.awaiting} onCheckedChange={(v) => setFilters({ ...filters, awaiting: v })} />
+            <Label htmlFor="awaiting">Awaiting decision</Label>
+          </div>
+          <Button variant="outline" onClick={exportCsv}><Download className="h-4 w-4" /> Export CSV</Button>
+          <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" /> Print</Button>
           <Button onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" /> Add QI Item
           </Button>
         </div>
       </div>
 
-      <Card>
+      <Card className="no-print">
         <CardContent className="p-3 grid grid-cols-2 md:grid-cols-5 gap-2">
           <div className="md:col-span-2 relative">
             <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
