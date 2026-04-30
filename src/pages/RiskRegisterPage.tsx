@@ -306,6 +306,39 @@ export default function RiskRegisterPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {reviewFor && (
+        <RiskReviewDialog
+          open
+          onOpenChange={(v) => { if (!v) setReviewFor(null); }}
+          riskId={reviewFor.id}
+          riskExternalId={reviewFor.risk_external_id}
+          onAfterSave={(outcome) => {
+            const id = reviewFor.id;
+            setReviewFor(null);
+            if (outcome === "New BE SMART Action Added") setPostReviewAction(id);
+            else if (outcome === "Added to QI Register") setPostReviewQi(id);
+          }}
+        />
+      )}
+
+      {postReviewAction && (
+        <BeSmartActionFormDialog
+          open
+          onOpenChange={(v) => { if (!v) setPostReviewAction(null); }}
+          action={null}
+          defaultRiskId={postReviewAction}
+        />
+      )}
+
+      {postReviewQi && (
+        <QiItemFormDialog
+          open
+          onOpenChange={(v) => { if (!v) setPostReviewQi(null); }}
+          item={null}
+          defaultRiskId={postReviewQi}
+        />
+      )}
     </div>
   );
 }
