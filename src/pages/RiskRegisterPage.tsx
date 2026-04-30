@@ -265,8 +265,8 @@ export default function RiskRegisterPage() {
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-3">
+      <Card className="no-print">
+        <CardContent className="p-3 space-y-2">
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-10 gap-2">
             <div className="lg:col-span-2 relative">
               <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
@@ -281,6 +281,35 @@ export default function RiskRegisterPage() {
             <Filter label="Team" value={filters.team} onChange={(v) => setFilters({ ...filters, team: v })} options={teams.map((t) => ({ label: t.name, value: t.id }))} />
             <Filter label="Inherent" value={filters.inherent} onChange={(v) => setFilters({ ...filters, inherent: v })} options={RATINGS} />
             <Filter label="Residual" value={filters.residual} onChange={(v) => setFilters({ ...filters, residual: v })} options={RATINGS} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t">
+            <Label className="text-xs text-muted-foreground mr-1">Quick filters:</Label>
+            {([
+              ["all", "All"],
+              ["overdue", "Overdue Review"],
+              ["high_no_action", "High/Very High • No Action"],
+              ["above_target", "Residual Above Target"],
+              ["no_controls", "No Controls"],
+              ["no_owner", "No Owner"],
+              ["has_actions", "Has Actions"],
+              ["has_qi", "Has QI"],
+            ] as const).map(([k, label]) => (
+              <Button
+                key={k}
+                size="sm"
+                variant={filters.alert === k ? "default" : "outline"}
+                onClick={() => {
+                  setFilters((f) => ({ ...f, alert: k as any }));
+                  if (k === "all") {
+                    const sp = new URLSearchParams(searchParams);
+                    sp.delete("alert");
+                    setSearchParams(sp, { replace: true });
+                  }
+                }}
+              >
+                {label}
+              </Button>
+            ))}
           </div>
         </CardContent>
       </Card>
