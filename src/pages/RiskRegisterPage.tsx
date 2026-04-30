@@ -195,9 +195,56 @@ export default function RiskRegisterPage() {
 
   const opt = (key: string) => (dropdowns[key] ?? []).map((d) => d.value);
 
+  const exportCsv = () => {
+    downloadCsv(
+      "risk_register",
+      filtered,
+      [
+        { header: "Risk ID", value: (r) => r.risk_external_id },
+        { header: "Risk Category", value: (r) => r.risk_category ?? "" },
+        { header: "Risk Type", value: (r) => r.risk_type ?? "" },
+        { header: "Level", value: (r) => r.level ?? "" },
+        { header: "Risk Event", value: (r) => r.risk_event },
+        { header: "Consequences", value: (r) => r.consequences ?? "" },
+        { header: "Inherent Likelihood", value: (r) => r.inherent_likelihood_score ?? "" },
+        { header: "Inherent Consequence", value: (r) => r.inherent_consequence_score ?? "" },
+        { header: "Live Inherent Rating", value: (r) => lookupRating(matrix, r.inherent_likelihood_score, r.inherent_consequence_score) ?? "" },
+        { header: "Current Risk Summary", value: (r) => r.current_risk_summary ?? "" },
+        { header: "Controls in Place", value: (r) => r.controls_in_place ?? "" },
+        { header: "Residual Likelihood", value: (r) => r.residual_likelihood_score ?? "" },
+        { header: "Residual Consequence", value: (r) => r.residual_consequence_score ?? "" },
+        { header: "Live Residual Rating", value: (r) => lookupRating(matrix, r.residual_likelihood_score, r.residual_consequence_score) ?? "" },
+        { header: "Risk Target Rating", value: (r) => r.risk_target_rating ?? "" },
+        { header: "Risk Target Description", value: (r) => r.risk_target_description ?? "" },
+        {
+          header: "Residual Above Target",
+          value: (r) => {
+            const res = lookupRating(matrix, r.residual_likelihood_score, r.residual_consequence_score);
+            const tgt = r.risk_target_rating;
+            if (!res || !tgt) return "";
+            return RATING_SCORE[res] > RATING_SCORE[tgt] ? "Yes" : "No";
+          },
+        },
+        { header: "Treatment Plan", value: (r) => r.treatment_plan ?? "" },
+        { header: "Risk Owner", value: (r) => r.risk_owner ?? "" },
+        { header: "Status", value: (r) => r.status ?? "" },
+        { header: "Review Frequency", value: (r) => r.review_frequency ?? "" },
+        { header: "Last Reviewed Date", value: (r) => r.last_reviewed_date ?? "" },
+        { header: "Next Review Date", value: (r) => r.next_review_date ?? "" },
+        { header: "Club", value: (r) => clubName(r.club_id) },
+        { header: "Team", value: (r) => teamName(r.team_id) },
+        { header: "Linked BE SMART Action Count", value: (r) => actionCountByRisk.get(r.id) ?? 0 },
+        { header: "Linked QI Item Count", value: (r) => qiCountByRisk.get(r.id) ?? 0 },
+        { header: "Evidence Notes", value: (r) => r.evidence_notes ?? "" },
+        { header: "Archived", value: (r) => (r.is_archived ? "Yes" : "No") },
+      ],
+    );
+  };
+
   return (
     <div className="p-6 space-y-4 max-w-[1600px] mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <PrintHeader title="Risk Register" subtitle={`${filtered.length} risks`} />
+      <div className="flex flex-wrap items-center justify-between gap-2 no-print">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Risk Register</h1>
           <p className="text-sm text-muted-foreground">
@@ -210,6 +257,8 @@ export default function RiskRegisterPage() {
             <Switch id="archived" checked={showArchived} onCheckedChange={setShowArchived} />
             <Label htmlFor="archived">Show archived</Label>
           </div>
+          <Button variant="outline" onClick={exportCsv}><Download className="h-4 w-4" /> Export CSV</Button>
+          <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" /> Print</Button>
           <Button onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" /> Add Risk
           </Button>
