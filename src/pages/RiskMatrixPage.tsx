@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useRiskMatrix } from "@/hooks/useRiskMatrix";
 import { ratingCellClass } from "@/lib/risk";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PrintHeader } from "@/components/PrintHeader";
+import { Info, Printer } from "lucide-react";
 
 type Guidance = { id: string; section_key: string; title: string; content: string; sort_order: number | null };
 
@@ -31,14 +33,18 @@ export default function RiskMatrixPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Risk Matrix &amp; Guidance</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Read-only view of the 5×5 risk matrix used to calculate inherent and residual ratings.
-        </p>
+      <PrintHeader title="Risk Matrix & Guidance" />
+      <div className="flex items-start justify-between gap-2 no-print">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Risk Matrix &amp; Guidance</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Read-only view of the 5×5 risk matrix used to calculate inherent and residual ratings.
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" /> Print</Button>
       </div>
 
-      <div className="flex items-start gap-2 rounded-md border border-accent bg-accent/50 text-accent-foreground px-3 py-2 text-sm">
+      <div className="flex items-start gap-2 rounded-md border border-accent bg-accent/50 text-accent-foreground px-3 py-2 text-sm no-print">
         <Info className="h-4 w-4 mt-0.5" />
         <span>Edit mode for the matrix and guidance becomes available in a later phase.</span>
       </div>
