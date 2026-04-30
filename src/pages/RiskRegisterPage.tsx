@@ -4,6 +4,8 @@ import { Plus, Pencil, Archive, History, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useDropdowns } from "@/hooks/useDropdowns";
 import { useTeams } from "@/hooks/useTeams";
+import { useClubs } from "@/hooks/useClubs";
+import { likelihoodLabel, consequenceLabel } from "@/hooks/useRiskMatrix";
 import { useRiskMatrix, lookupRating } from "@/hooks/useRiskMatrix";
 import { RiskBadge } from "@/components/RiskBadge";
 import { RiskFormDialog } from "@/components/RiskFormDialog";
@@ -44,6 +46,7 @@ export type Risk = {
   last_reviewed_date: string | null;
   next_review_date: string | null;
   team_id: string | null;
+  club_id: string | null;
   evidence_notes: string | null;
   is_archived: boolean;
   archived_at: string | null;
@@ -59,11 +62,12 @@ export default function RiskRegisterPage() {
   const { data: matrix = [] } = useRiskMatrix();
   const { data: dropdowns = {} } = useDropdowns();
   const { data: teams = [] } = useTeams();
+  const { data: clubs = [] } = useClubs();
 
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({
-    category: "all", type: "all", level: "all", owner: "all", status: "all", team: "all",
+    category: "all", type: "all", level: "all", owner: "all", status: "all", team: "all", club: "all",
     inherent: "all", residual: "all",
   });
   const [editing, setEditing] = useState<Risk | null>(null);
@@ -82,6 +86,7 @@ export default function RiskRegisterPage() {
   });
 
   const teamName = (id?: string | null) => teams.find((t) => t.id === id)?.name ?? "";
+  const clubName = (id?: string | null) => clubs.find((c) => c.id === id)?.name ?? "";
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -94,6 +99,7 @@ export default function RiskRegisterPage() {
       if (filters.owner !== "all" && r.risk_owner !== filters.owner) return false;
       if (filters.status !== "all" && r.status !== filters.status) return false;
       if (filters.team !== "all" && r.team_id !== filters.team) return false;
+      if (filters.club !== "all" && r.club_id !== filters.club) return false;
       if (filters.inherent !== "all" && inherent !== filters.inherent) return false;
       if (filters.residual !== "all" && residual !== filters.residual) return false;
       if (s) {
