@@ -143,7 +143,7 @@ export default function RiskMatrixPage() {
         </div>
       )}
       {editMode && (
-        <div className="flex items-start gap-2 rounded-md border border-warning bg-warning/10 text-foreground px-3 py-2 text-sm no-print">
+        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 text-foreground px-3 py-2 text-sm no-print">
           <AlertTriangle className="h-4 w-4 mt-0.5" />
           <span>Edit mode is active. Click a cell to change its rating. Changes are sensitive and audited.</span>
         </div>
