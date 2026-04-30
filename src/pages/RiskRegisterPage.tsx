@@ -182,6 +182,7 @@ export default function RiskRegisterPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Risk ID</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Type</TableHead>
@@ -211,46 +212,62 @@ export default function RiskRegisterPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={25} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={26} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={25} className="text-center text-muted-foreground py-8">No risks match.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={26} className="text-center text-muted-foreground py-8">No risks match.</TableCell></TableRow>
               ) : filtered.map((r) => {
                 const inherent = lookupRating(matrix, r.inherent_likelihood_score, r.inherent_consequence_score);
                 const residual = lookupRating(matrix, r.residual_likelihood_score, r.residual_consequence_score);
+                const isExpanded = expandedId === r.id;
                 return (
-                  <TableRow key={r.id} className={r.is_archived ? "opacity-60" : ""}>
-                    <TableCell className="font-medium whitespace-nowrap">{r.risk_external_id}{r.is_archived && <span className="ml-1 text-xs text-muted-foreground">(archived)</span>}</TableCell>
-                    <TableCell>{r.risk_category}</TableCell>
-                    <TableCell>{r.risk_type}</TableCell>
-                    <TableCell>{r.level}</TableCell>
-                    <TableCell>{r.risk_event}</TableCell>
-                    <TableCell className="text-sm">{r.consequences}</TableCell>
-                    <TableCell>{r.inherent_likelihood_score ? `${r.inherent_likelihood_score} — ${likelihoodLabel(matrix, r.inherent_likelihood_score)}` : ""}</TableCell>
-                    <TableCell>{r.inherent_consequence_score ? `${r.inherent_consequence_score} — ${consequenceLabel(matrix, r.inherent_consequence_score)}` : ""}</TableCell>
-                    <TableCell><RiskBadge rating={inherent} /></TableCell>
-                    <TableCell className="text-sm">{r.current_risk_summary}</TableCell>
-                    <TableCell className="text-sm">{r.controls_in_place}</TableCell>
-                    <TableCell>{r.residual_likelihood_score ? `${r.residual_likelihood_score} — ${likelihoodLabel(matrix, r.residual_likelihood_score)}` : ""}</TableCell>
-                    <TableCell>{r.residual_consequence_score ? `${r.residual_consequence_score} — ${consequenceLabel(matrix, r.residual_consequence_score)}` : ""}</TableCell>
-                    <TableCell><RiskBadge rating={residual} /></TableCell>
-                    <TableCell><RiskBadge rating={r.risk_target_rating} /></TableCell>
-                    <TableCell className="text-sm">{r.risk_target_description}</TableCell>
-                    <TableCell className="text-sm">{r.treatment_plan}</TableCell>
-                    <TableCell>{r.risk_owner}</TableCell>
-                    <TableCell>{r.status}</TableCell>
-                    <TableCell>{r.review_frequency}</TableCell>
-                    <TableCell>{r.next_review_date}</TableCell>
-                    <TableCell>{clubName(r.club_id)}</TableCell>
-                    <TableCell>{teamName(r.team_id)}</TableCell>
-                    <TableCell className="text-sm">{r.evidence_notes}</TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      <Button size="icon" variant="ghost" onClick={() => setEditing(r)} title="Edit"><Pencil className="h-4 w-4" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => setAuditFor(r)} title="Audit history"><History className="h-4 w-4" /></Button>
-                      {!r.is_archived && (
-                        <Button size="icon" variant="ghost" onClick={() => setArchiveTarget(r)} title="Archive"><Archive className="h-4 w-4" /></Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                  <Fragment key={r.id}>
+                    <TableRow className={r.is_archived ? "opacity-60" : ""}>
+                      <TableCell>
+                        <Button size="icon" variant="ghost" onClick={() => setExpandedId(isExpanded ? null : r.id)} title={isExpanded ? "Collapse" : "Expand"}>
+                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">{r.risk_external_id}{r.is_archived && <span className="ml-1 text-xs text-muted-foreground">(archived)</span>}</TableCell>
+                      <TableCell>{r.risk_category}</TableCell>
+                      <TableCell>{r.risk_type}</TableCell>
+                      <TableCell>{r.level}</TableCell>
+                      <TableCell>{r.risk_event}</TableCell>
+                      <TableCell className="text-sm">{r.consequences}</TableCell>
+                      <TableCell>{r.inherent_likelihood_score ? `${r.inherent_likelihood_score} — ${likelihoodLabel(matrix, r.inherent_likelihood_score)}` : ""}</TableCell>
+                      <TableCell>{r.inherent_consequence_score ? `${r.inherent_consequence_score} — ${consequenceLabel(matrix, r.inherent_consequence_score)}` : ""}</TableCell>
+                      <TableCell><RiskBadge rating={inherent} /></TableCell>
+                      <TableCell className="text-sm">{r.current_risk_summary}</TableCell>
+                      <TableCell className="text-sm">{r.controls_in_place}</TableCell>
+                      <TableCell>{r.residual_likelihood_score ? `${r.residual_likelihood_score} — ${likelihoodLabel(matrix, r.residual_likelihood_score)}` : ""}</TableCell>
+                      <TableCell>{r.residual_consequence_score ? `${r.residual_consequence_score} — ${consequenceLabel(matrix, r.residual_consequence_score)}` : ""}</TableCell>
+                      <TableCell><RiskBadge rating={residual} /></TableCell>
+                      <TableCell><RiskBadge rating={r.risk_target_rating} /></TableCell>
+                      <TableCell className="text-sm">{r.risk_target_description}</TableCell>
+                      <TableCell className="text-sm">{r.treatment_plan}</TableCell>
+                      <TableCell>{r.risk_owner}</TableCell>
+                      <TableCell>{r.status}</TableCell>
+                      <TableCell>{r.review_frequency}</TableCell>
+                      <TableCell>{r.next_review_date}</TableCell>
+                      <TableCell>{clubName(r.club_id)}</TableCell>
+                      <TableCell>{teamName(r.team_id)}</TableCell>
+                      <TableCell className="text-sm">{r.evidence_notes}</TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <Button size="icon" variant="ghost" onClick={() => setReviewFor(r)} title="Review Now"><ClipboardCheck className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => setEditing(r)} title="Edit"><Pencil className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => setAuditFor(r)} title="Audit history"><History className="h-4 w-4" /></Button>
+                        {!r.is_archived && (
+                          <Button size="icon" variant="ghost" onClick={() => setArchiveTarget(r)} title="Archive"><Archive className="h-4 w-4" /></Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                    {isExpanded && (
+                      <TableRow>
+                        <TableCell colSpan={26} className="p-0">
+                          <RiskRowExpanded riskId={r.id} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
                 );
               })}
             </TableBody>
