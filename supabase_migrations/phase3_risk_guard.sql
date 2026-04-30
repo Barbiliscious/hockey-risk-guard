@@ -1,7 +1,7 @@
 -- =====================================================================
 -- Hockey Risk Guard — Phase 3 migration
 -- Adds helper SQL views for dashboard, alerts and the due-items list.
--- All views use SECURITY INVOKER (default) so callers must have
+-- All views are explicitly SECURITY INVOKER so callers must have
 -- has_risk_access(auth.uid()) via underlying table RLS.
 -- Idempotent.
 -- =====================================================================
@@ -9,7 +9,9 @@
 -- ---------------------------------------------------------------------
 -- 1. Risks with live ratings (joined to current rg_risk_matrix)
 -- ---------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.rg_v_risks_with_live_ratings AS
+CREATE OR REPLACE VIEW public.rg_v_risks_with_live_ratings
+WITH (security_invoker = true)
+AS
 SELECT
   r.*,
   mi.rating AS live_inherent_rating,
@@ -39,7 +41,9 @@ LEFT JOIN public.rg_risk_matrix mr
 -- ---------------------------------------------------------------------
 -- 2. Combined due items list
 -- ---------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.rg_v_due_items AS
+CREATE OR REPLACE VIEW public.rg_v_due_items
+WITH (security_invoker = true)
+AS
 -- Risk reviews
 SELECT
   'Risk Review'::text                        AS item_type,
@@ -96,7 +100,9 @@ WHERE q.is_archived = false
 -- ---------------------------------------------------------------------
 -- 3. Risk alerts view (one row per risk, with alert flags)
 -- ---------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.rg_v_risk_alerts AS
+CREATE OR REPLACE VIEW public.rg_v_risk_alerts
+WITH (security_invoker = true)
+AS
 WITH live AS (
   SELECT * FROM public.rg_v_risks_with_live_ratings
 ),
@@ -146,7 +152,9 @@ LEFT JOIN action_counts ac ON ac.linked_risk_id = l.id;
 -- ---------------------------------------------------------------------
 -- 4. Dashboard summary view (single row)
 -- ---------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.rg_v_dashboard_summary AS
+CREATE OR REPLACE VIEW public.rg_v_dashboard_summary
+WITH (security_invoker = true)
+AS
 WITH live AS (
   SELECT * FROM public.rg_v_risks_with_live_ratings WHERE is_archived = false
 ),

@@ -195,6 +195,56 @@ export default function RiskRegisterPage() {
 
   const opt = (key: string) => (dropdowns[key] ?? []).map((d) => d.value);
 
+  const exportReviewsCsv = async () => {
+    const filteredIds = new Set(filtered.map((r) => r.id));
+    const { data, error } = await supabase
+      .from("rg_risk_reviews")
+      .select("*")
+      .order("reviewed_at", { ascending: false });
+    if (error) {
+      toast({ title: "Could not export reviews", description: error.message, variant: "destructive" });
+      return;
+    }
+    const rows = (data ?? []).filter((r: any) => filteredIds.has(r.risk_id));
+    const riskById = new Map(risks.map((r) => [r.id, r] as const));
+
+    // Resolve reviewer names
+    const reviewerIds = Array.from(new Set(rows.map((r: any) => r.reviewed_by).filter(Boolean)));
+    let profiles: any[] = [];
+    if (reviewerIds.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", reviewerIds as string[]);
+      profiles = profs ?? [];
+    }
+    const reviewerName = (id: string | null) => {
+      if (!id) return "";
+      const p = profiles.find((x) => x.user_id === id);
+      return p?.full_name || p?.email || id;
+    };
+
+    downloadCsv(
+      "risk_reviews",
+      rows,
+      [
+        { header: "Risk ID", value: (r: any) => riskById.get(r.risk_id)?.risk_external_id ?? "" },
+        { header: "Review Date", value: (r: any) => r.reviewed_at ?? "" },
+        { header: "Reviewed By", value: (r: any) => reviewerName(r.reviewed_by) },
+        { header: "Outcome", value: (r: any) => r.outcome ?? "" },
+        { header: "Notes", value: (r: any) => r.notes ?? "" },
+        { header: "Inherent Likelihood Snapshot", value: (r: any) => r.inherent_likelihood_score ?? "" },
+        { header: "Inherent Consequence Snapshot", value: (r: any) => r.inherent_consequence_score ?? "" },
+        { header: "Inherent Rating Snapshot", value: (r: any) => r.inherent_rating_snapshot ?? "" },
+        { header: "Residual Likelihood Snapshot", value: (r: any) => r.residual_likelihood_score ?? "" },
+        { header: "Residual Consequence Snapshot", value: (r: any) => r.residual_consequence_score ?? "" },
+        { header: "Residual Rating Snapshot", value: (r: any) => r.residual_rating_snapshot ?? "" },
+        { header: "Target Rating Snapshot", value: (r: any) => r.risk_target_rating_snapshot ?? "" },
+        { header: "Status Snapshot", value: (r: any) => r.risk_status_snapshot ?? "" },
+      ],
+    );
+  };
+
   const exportCsv = () => {
     downloadCsv(
       "risk_register",
@@ -258,6 +308,7 @@ export default function RiskRegisterPage() {
             <Label htmlFor="archived">Show archived</Label>
           </div>
           <Button variant="outline" onClick={exportCsv}><Download className="h-4 w-4" /> Export CSV</Button>
+          <Button variant="outline" onClick={exportReviewsCsv}><Download className="h-4 w-4" /> Export Reviews</Button>
           <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" /> Print</Button>
           <Button onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" /> Add Risk
