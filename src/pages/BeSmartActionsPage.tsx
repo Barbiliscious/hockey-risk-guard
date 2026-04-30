@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Archive, MessageSquare, Search } from "lucide-react";
+import { Plus, Pencil, Archive, MessageSquare, Search, Download, Printer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useBeSmartActions, type BeSmartAction } from "@/hooks/useBeSmartActions";
 import { useDropdowns } from "@/hooks/useDropdowns";
