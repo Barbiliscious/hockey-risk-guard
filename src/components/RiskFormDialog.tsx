@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import type { Risk } from "./RiskRegisterPage";
+import type { Risk } from "@/pages/RiskRegisterPage";
 
 const schema = z.object({
   risk_external_id: z.string().min(1, "Risk ID required"),
