@@ -63,6 +63,9 @@ export default function BeSmartActionsPage() {
   const teamName = (id?: string | null) => teams.find((t) => t.id === id)?.name ?? "";
   const clubName = (id?: string | null) => clubs.find((c) => c.id === id)?.name ?? "";
 
+  const today = new Date();
+  const in30 = new Date(); in30.setDate(today.getDate() + 30);
+
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
     return rows.filter((r) => {
@@ -70,12 +73,23 @@ export default function BeSmartActionsPage() {
       if (filters.risk !== "all" && r.linked_risk_id !== filters.risk) return false;
       if (filters.club !== "all" && r.club_id !== filters.club) return false;
       if (filters.team !== "all" && r.team_id !== filters.team) return false;
+      if (filters.due !== "all") {
+        const d = r.due_date ? new Date(r.due_date) : null;
+        const isComplete = ["Complete","Completed","Closed"].includes(r.status ?? "");
+        switch (filters.due) {
+          case "overdue":  if (!(d && d < today && !isComplete)) return false; break;
+          case "due30":    if (!(d && d >= today && d <= in30 && !isComplete)) return false; break;
+          case "no_date":  if (d) return false; break;
+          case "complete": if (!isComplete) return false; break;
+        }
+      }
       if (s) {
         const hay = `${r.action_external_id} ${r.action_title} ${r.responsible_person_role ?? ""}`.toLowerCase();
         if (!hay.includes(s)) return false;
       }
       return true;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, filters, search]);
 
   const archive = useMutation({
