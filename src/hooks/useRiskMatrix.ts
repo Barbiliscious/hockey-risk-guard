@@ -46,3 +46,30 @@ export function consequenceLabel(rows: MatrixRow[] | undefined, score?: number |
   if (!rows || !score) return "";
   return rows.find((r) => r.consequence_score === score)?.consequence_label ?? "";
 }
+
+export type ScoreOption = { score: number; label: string; display: string };
+
+const FALLBACK_LIKELIHOOD: Record<number, string> = {
+  1: "Rare", 2: "Unlikely", 3: "Possible", 4: "Likely", 5: "Almost Certain",
+};
+const FALLBACK_CONSEQUENCE: Record<number, string> = {
+  1: "Insignificant", 2: "Minor", 3: "Moderate", 4: "Major", 5: "Severe",
+};
+
+export function likelihoodOptions(rows: MatrixRow[] | undefined): ScoreOption[] {
+  const map = new Map<number, string>();
+  (rows ?? []).forEach((r) => map.set(r.likelihood_score, r.likelihood_label));
+  return [1, 2, 3, 4, 5].map((s) => {
+    const label = map.get(s) ?? FALLBACK_LIKELIHOOD[s];
+    return { score: s, label, display: `${s} — ${label}` };
+  });
+}
+
+export function consequenceOptions(rows: MatrixRow[] | undefined): ScoreOption[] {
+  const map = new Map<number, string>();
+  (rows ?? []).forEach((r) => map.set(r.consequence_score, r.consequence_label));
+  return [1, 2, 3, 4, 5].map((s) => {
+    const label = map.get(s) ?? FALLBACK_CONSEQUENCE[s];
+    return { score: s, label, display: `${s} — ${label}` };
+  });
+}
