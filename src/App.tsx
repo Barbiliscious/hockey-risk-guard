@@ -10,6 +10,8 @@ import AppLayout from "@/components/AppLayout";
 import RiskRegisterPage from "@/pages/RiskRegisterPage";
 import RiskMatrixPage from "@/pages/RiskMatrixPage";
 import AuditLogPage from "@/pages/AuditLogPage";
+import BeSmartActionsPage from "@/pages/BeSmartActionsPage";
+import QualityImprovementPage from "@/pages/QualityImprovementPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -30,6 +32,8 @@ const App = () => (
               <Route path="/" element={<Navigate to="/risk/register" replace />} />
               <Route path="/risk" element={<Navigate to="/risk/register" replace />} />
               <Route path="/risk/register" element={<RiskRegisterPage />} />
+              <Route path="/risk/actions" element={<BeSmartActionsPage />} />
+              <Route path="/risk/qi" element={<QualityImprovementPage />} />
               <Route path="/risk/matrix" element={<RiskMatrixPage />} />
               <Route path="/risk/audit" element={<AuditLogPage />} />
             </Route>

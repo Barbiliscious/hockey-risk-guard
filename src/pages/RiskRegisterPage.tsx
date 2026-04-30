@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Archive, History, Search } from "lucide-react";
+import { Plus, Pencil, Archive, History, Search, ChevronRight, ChevronDown, ClipboardCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useDropdowns } from "@/hooks/useDropdowns";
 import { useTeams } from "@/hooks/useTeams";
@@ -9,6 +9,10 @@ import { useRiskMatrix, lookupRating, likelihoodLabel, consequenceLabel } from "
 import { RiskBadge } from "@/components/RiskBadge";
 import { RiskFormDialog } from "@/components/RiskFormDialog";
 import { RiskAuditDrawer } from "@/components/RiskAuditDrawer";
+import { RiskRowExpanded } from "@/components/RiskRowExpanded";
+import { RiskReviewDialog } from "@/components/RiskReviewDialog";
+import { BeSmartActionFormDialog } from "@/components/BeSmartActionFormDialog";
+import { QiItemFormDialog } from "@/components/QiItemFormDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,6 +77,10 @@ export default function RiskRegisterPage() {
   const [creating, setCreating] = useState(false);
   const [auditFor, setAuditFor] = useState<Risk | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<Risk | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [reviewFor, setReviewFor] = useState<Risk | null>(null);
+  const [postReviewAction, setPostReviewAction] = useState<string | null>(null);
+  const [postReviewQi, setPostReviewQi] = useState<string | null>(null);
 
   const { data: risks = [], isLoading } = useQuery({
     queryKey: ["rg_risk_register", showArchived],
@@ -174,6 +182,7 @@ export default function RiskRegisterPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Risk ID</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Type</TableHead>
@@ -203,46 +212,62 @@ export default function RiskRegisterPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={25} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={26} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={25} className="text-center text-muted-foreground py-8">No risks match.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={26} className="text-center text-muted-foreground py-8">No risks match.</TableCell></TableRow>
               ) : filtered.map((r) => {
                 const inherent = lookupRating(matrix, r.inherent_likelihood_score, r.inherent_consequence_score);
                 const residual = lookupRating(matrix, r.residual_likelihood_score, r.residual_consequence_score);
+                const isExpanded = expandedId === r.id;
                 return (
-                  <TableRow key={r.id} className={r.is_archived ? "opacity-60" : ""}>
-                    <TableCell className="font-medium whitespace-nowrap">{r.risk_external_id}{r.is_archived && <span className="ml-1 text-xs text-muted-foreground">(archived)</span>}</TableCell>
-                    <TableCell>{r.risk_category}</TableCell>
-                    <TableCell>{r.risk_type}</TableCell>
-                    <TableCell>{r.level}</TableCell>
-                    <TableCell>{r.risk_event}</TableCell>
-                    <TableCell className="text-sm">{r.consequences}</TableCell>
-                    <TableCell>{r.inherent_likelihood_score ? `${r.inherent_likelihood_score} — ${likelihoodLabel(matrix, r.inherent_likelihood_score)}` : ""}</TableCell>
-                    <TableCell>{r.inherent_consequence_score ? `${r.inherent_consequence_score} — ${consequenceLabel(matrix, r.inherent_consequence_score)}` : ""}</TableCell>
-                    <TableCell><RiskBadge rating={inherent} /></TableCell>
-                    <TableCell className="text-sm">{r.current_risk_summary}</TableCell>
-                    <TableCell className="text-sm">{r.controls_in_place}</TableCell>
-                    <TableCell>{r.residual_likelihood_score ? `${r.residual_likelihood_score} — ${likelihoodLabel(matrix, r.residual_likelihood_score)}` : ""}</TableCell>
-                    <TableCell>{r.residual_consequence_score ? `${r.residual_consequence_score} — ${consequenceLabel(matrix, r.residual_consequence_score)}` : ""}</TableCell>
-                    <TableCell><RiskBadge rating={residual} /></TableCell>
-                    <TableCell><RiskBadge rating={r.risk_target_rating} /></TableCell>
-                    <TableCell className="text-sm">{r.risk_target_description}</TableCell>
-                    <TableCell className="text-sm">{r.treatment_plan}</TableCell>
-                    <TableCell>{r.risk_owner}</TableCell>
-                    <TableCell>{r.status}</TableCell>
-                    <TableCell>{r.review_frequency}</TableCell>
-                    <TableCell>{r.next_review_date}</TableCell>
-                    <TableCell>{clubName(r.club_id)}</TableCell>
-                    <TableCell>{teamName(r.team_id)}</TableCell>
-                    <TableCell className="text-sm">{r.evidence_notes}</TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      <Button size="icon" variant="ghost" onClick={() => setEditing(r)} title="Edit"><Pencil className="h-4 w-4" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => setAuditFor(r)} title="Audit history"><History className="h-4 w-4" /></Button>
-                      {!r.is_archived && (
-                        <Button size="icon" variant="ghost" onClick={() => setArchiveTarget(r)} title="Archive"><Archive className="h-4 w-4" /></Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                  <Fragment key={r.id}>
+                    <TableRow className={r.is_archived ? "opacity-60" : ""}>
+                      <TableCell>
+                        <Button size="icon" variant="ghost" onClick={() => setExpandedId(isExpanded ? null : r.id)} title={isExpanded ? "Collapse" : "Expand"}>
+                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">{r.risk_external_id}{r.is_archived && <span className="ml-1 text-xs text-muted-foreground">(archived)</span>}</TableCell>
+                      <TableCell>{r.risk_category}</TableCell>
+                      <TableCell>{r.risk_type}</TableCell>
+                      <TableCell>{r.level}</TableCell>
+                      <TableCell>{r.risk_event}</TableCell>
+                      <TableCell className="text-sm">{r.consequences}</TableCell>
+                      <TableCell>{r.inherent_likelihood_score ? `${r.inherent_likelihood_score} — ${likelihoodLabel(matrix, r.inherent_likelihood_score)}` : ""}</TableCell>
+                      <TableCell>{r.inherent_consequence_score ? `${r.inherent_consequence_score} — ${consequenceLabel(matrix, r.inherent_consequence_score)}` : ""}</TableCell>
+                      <TableCell><RiskBadge rating={inherent} /></TableCell>
+                      <TableCell className="text-sm">{r.current_risk_summary}</TableCell>
+                      <TableCell className="text-sm">{r.controls_in_place}</TableCell>
+                      <TableCell>{r.residual_likelihood_score ? `${r.residual_likelihood_score} — ${likelihoodLabel(matrix, r.residual_likelihood_score)}` : ""}</TableCell>
+                      <TableCell>{r.residual_consequence_score ? `${r.residual_consequence_score} — ${consequenceLabel(matrix, r.residual_consequence_score)}` : ""}</TableCell>
+                      <TableCell><RiskBadge rating={residual} /></TableCell>
+                      <TableCell><RiskBadge rating={r.risk_target_rating} /></TableCell>
+                      <TableCell className="text-sm">{r.risk_target_description}</TableCell>
+                      <TableCell className="text-sm">{r.treatment_plan}</TableCell>
+                      <TableCell>{r.risk_owner}</TableCell>
+                      <TableCell>{r.status}</TableCell>
+                      <TableCell>{r.review_frequency}</TableCell>
+                      <TableCell>{r.next_review_date}</TableCell>
+                      <TableCell>{clubName(r.club_id)}</TableCell>
+                      <TableCell>{teamName(r.team_id)}</TableCell>
+                      <TableCell className="text-sm">{r.evidence_notes}</TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <Button size="icon" variant="ghost" onClick={() => setReviewFor(r)} title="Review Now"><ClipboardCheck className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => setEditing(r)} title="Edit"><Pencil className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => setAuditFor(r)} title="Audit history"><History className="h-4 w-4" /></Button>
+                        {!r.is_archived && (
+                          <Button size="icon" variant="ghost" onClick={() => setArchiveTarget(r)} title="Archive"><Archive className="h-4 w-4" /></Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                    {isExpanded && (
+                      <TableRow>
+                        <TableCell colSpan={26} className="p-0">
+                          <RiskRowExpanded riskId={r.id} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
                 );
               })}
             </TableBody>
@@ -281,6 +306,39 @@ export default function RiskRegisterPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {reviewFor && (
+        <RiskReviewDialog
+          open
+          onOpenChange={(v) => { if (!v) setReviewFor(null); }}
+          riskId={reviewFor.id}
+          riskExternalId={reviewFor.risk_external_id}
+          onAfterSave={(outcome) => {
+            const id = reviewFor.id;
+            setReviewFor(null);
+            if (outcome === "New BE SMART Action Added") setPostReviewAction(id);
+            else if (outcome === "Added to QI Register") setPostReviewQi(id);
+          }}
+        />
+      )}
+
+      {postReviewAction && (
+        <BeSmartActionFormDialog
+          open
+          onOpenChange={(v) => { if (!v) setPostReviewAction(null); }}
+          action={null}
+          defaultRiskId={postReviewAction}
+        />
+      )}
+
+      {postReviewQi && (
+        <QiItemFormDialog
+          open
+          onOpenChange={(v) => { if (!v) setPostReviewQi(null); }}
+          item={null}
+          defaultRiskId={postReviewQi}
+        />
+      )}
     </div>
   );
 }
