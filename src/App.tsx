@@ -13,6 +13,7 @@ import RiskMatrixPage from "@/pages/RiskMatrixPage";
 import AuditLogPage from "@/pages/AuditLogPage";
 import BeSmartActionsPage from "@/pages/BeSmartActionsPage";
 import QualityImprovementPage from "@/pages/QualityImprovementPage";
+import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -38,6 +39,7 @@ const App = () => (
               <Route path="/risk/qi" element={<QualityImprovementPage />} />
               <Route path="/risk/matrix" element={<RiskMatrixPage />} />
               <Route path="/risk/audit" element={<AuditLogPage />} />
+              <Route path="/risk/settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
