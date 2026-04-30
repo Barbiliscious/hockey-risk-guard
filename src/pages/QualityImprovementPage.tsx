@@ -34,7 +34,7 @@ export default function QualityImprovementPage() {
 
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [filters, setFilters] = useState({
     qi_type: "all", status: "all", priority: "all", project: "all",
     risk: "all", action: "all", club: "all", team: "all",
