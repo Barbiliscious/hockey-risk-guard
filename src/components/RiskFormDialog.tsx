@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useDropdowns } from "@/hooks/useDropdowns";
 import { useTeams } from "@/hooks/useTeams";
 import { useClubs } from "@/hooks/useClubs";
-import { useTeamClubLinks } from "@/hooks/useTeamClubLinks";
+
 import {
   useRiskMatrix,
   lookupRating,
@@ -64,7 +64,6 @@ export function RiskFormDialog({
   const { data: dropdowns = {} } = useDropdowns();
   const { data: teams = [] } = useTeams();
   const { data: clubs = [] } = useClubs();
-  const { teamIdsForClub } = useTeamClubLinks();
   const { data: matrix = [] } = useRiskMatrix();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -110,16 +109,9 @@ export function RiskFormDialog({
   const lOpts = useMemo(() => likelihoodOptions(matrix), [matrix]);
   const cOpts = useMemo(() => consequenceOptions(matrix), [matrix]);
 
-  // Team filtering by club
+  // Team is hidden/disabled until a Club is chosen. No link-based filtering this phase.
   const selectedClub = watch.club_id || "";
-  const linkedTeamIds = teamIdsForClub(selectedClub);
-  const filteredTeams = useMemo(() => {
-    if (!selectedClub) return [];
-    if (linkedTeamIds.length === 0) return teams; // graceful fallback
-    return teams.filter((t) => linkedTeamIds.includes(t.id));
-  }, [teams, selectedClub, linkedTeamIds]);
   const teamDisabled = !selectedClub;
-  const noLinksHint = !!selectedClub && linkedTeamIds.length === 0;
 
   const save = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -271,18 +263,16 @@ export function RiskFormDialog({
               />
             </Field>
             <Field label="Team (optional)">
-              <SelectField
-                name="team_id"
-                form={form}
-                options={filteredTeams.map((t) => ({ label: t.name, value: t.id }))}
-                allowClear
-                disabled={teamDisabled}
-                placeholder={teamDisabled ? "Select a Club first (optional)" : "—"}
-              />
-              {noLinksHint && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  No teams are linked to this club yet — showing all teams.
-                </p>
+              {teamDisabled ? (
+                <Input value="" disabled readOnly placeholder="Select a Club first" />
+              ) : (
+                <SelectField
+                  name="team_id"
+                  form={form}
+                  options={teams.map((t) => ({ label: t.name, value: t.id }))}
+                  allowClear
+                  placeholder="—"
+                />
               )}
             </Field>
           </div>
