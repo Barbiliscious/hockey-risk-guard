@@ -262,11 +262,19 @@ DECLARE
   v_is_president boolean;
   v_sensitive boolean;
   v_existing boolean;
+  v_role_type regtype;
+  v_sql text;
 BEGIN
   IF v_uid IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
 
-  SELECT public.has_role(v_uid, 'super_admin'::public.app_role) INTO v_is_super;
-  SELECT public.has_role(v_uid, 'president'::public.app_role)   INTO v_is_president;
+  -- Validate role string against the project's allowed values
+  IF p_role NOT IN ('super_admin','president','committee','admin','umpire') THEN
+    RAISE EXCEPTION 'Invalid role: %', p_role;
+  END IF;
+
+  -- has_role() in this project accepts the same text values; no enum cast required
+  SELECT public.has_role(v_uid, 'super_admin') INTO v_is_super;
+  SELECT public.has_role(v_uid, 'president')   INTO v_is_president;
 
   -- Permission rules
   IF p_role IN ('super_admin','president') THEN
@@ -278,7 +286,7 @@ BEGIN
       RAISE EXCEPTION 'Only super_admin or president can change committee role';
     END IF;
   ELSE
-    -- admin / umpire / risk roles: super_admin only (safe default)
+    -- admin / umpire: super_admin only (safe default)
     IF NOT v_is_super THEN
       RAISE EXCEPTION 'Only super_admin can change this role';
     END IF;
@@ -290,6 +298,14 @@ BEGIN
 
   v_sensitive := p_role IN ('super_admin','president','committee');
 
+  -- Detect the actual data type of public.user_roles.role so we can cast safely
+  -- whether the column is text or an enum (e.g. public.app_role).
+  SELECT atttypid::regtype INTO v_role_type
+    FROM pg_attribute
+   WHERE attrelid = 'public.user_roles'::regclass
+     AND attname  = 'role'
+     AND NOT attisdropped;
+
   SELECT EXISTS (
     SELECT 1 FROM public.user_roles
      WHERE user_id = p_user_id AND role::text = p_role
@@ -297,16 +313,22 @@ BEGIN
 
   IF p_grant THEN
     IF v_existing THEN RETURN; END IF;
-    EXECUTE format('INSERT INTO public.user_roles (user_id, role) VALUES (%L, %L::public.app_role)',
-                   p_user_id, p_role);
+    v_sql := format(
+      'INSERT INTO public.user_roles (user_id, role) VALUES (%L, %L::%s)',
+      p_user_id, p_role, v_role_type::text
+    );
+    EXECUTE v_sql;
     PERFORM public._rg_audit_write(
       'role_grant','user_roles', p_user_id,
       'role', NULL, p_role, p_reason_for_change, v_sensitive
     );
   ELSE
     IF NOT v_existing THEN RETURN; END IF;
-    EXECUTE format('DELETE FROM public.user_roles WHERE user_id = %L AND role = %L::public.app_role',
-                   p_user_id, p_role);
+    v_sql := format(
+      'DELETE FROM public.user_roles WHERE user_id = %L AND role::text = %L',
+      p_user_id, p_role
+    );
+    EXECUTE v_sql;
     PERFORM public._rg_audit_write(
       'role_revoke','user_roles', p_user_id,
       'role', p_role, NULL, p_reason_for_change, v_sensitive
