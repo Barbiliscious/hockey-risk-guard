@@ -493,6 +493,63 @@ BEGIN
   END IF;
 END $$;
 
+-- ---------------------------------------------------------------------
+-- 9. Tighten RLS on settings tables
+--    SELECT  → has_risk_access(auth.uid())  (committee can view)
+--    INSERT/UPDATE → can_edit_risk_matrix(auth.uid())  (super_admin/president)
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE
+  t text;
+  tables text[] := ARRAY[
+    'rg_dropdown_values',
+    'rg_clubs',
+    'rg_team_club_links',
+    'rg_venues'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tables LOOP
+    -- Only act if the table exists (rg_venues is created above; others in earlier phases)
+    IF EXISTS (
+      SELECT 1 FROM pg_class c
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'public' AND c.relname = t AND c.relkind = 'r'
+    ) THEN
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_select', t);
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR SELECT TO authenticated
+           USING (public.has_risk_access(auth.uid()))',
+        t || '_select', t
+      );
+
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_insert', t);
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR INSERT TO authenticated
+           WITH CHECK (public.can_edit_risk_matrix(auth.uid()))',
+        t || '_insert', t
+      );
+
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_update', t);
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR UPDATE TO authenticated
+           USING (public.can_edit_risk_matrix(auth.uid()))
+           WITH CHECK (public.can_edit_risk_matrix(auth.uid()))',
+        t || '_update', t
+      );
+
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_delete', t);
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR DELETE TO authenticated
+           USING (public.can_edit_risk_matrix(auth.uid()))',
+        t || '_delete', t
+      );
+    END IF;
+  END LOOP;
+END $$;
+
 -- =====================================================================
 -- End of Phase 4 migration
 -- =====================================================================
+
