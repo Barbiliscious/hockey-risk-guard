@@ -351,12 +351,15 @@ SET search_path = public
 AS $$
 DECLARE
   v_uid uuid := auth.uid();
-  v_risk_ids uuid[];
-  v_n_risks int := 0;
-  v_n_actions int := 0;
-  v_n_qi int := 0;
-  v_n_reviews int := 0;
+  v_risk_ids   uuid[];
+  v_action_ids uuid[];
+  v_qi_ids     uuid[];
+  v_n_risks    int := 0;
+  v_n_actions  int := 0;
+  v_n_qi       int := 0;
+  v_n_reviews  int := 0;
   v_n_comments int := 0;
+  v_n_tmp      int := 0;
 BEGIN
   IF v_uid IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
   IF NOT public.can_edit_risk_matrix(v_uid) THEN
@@ -369,7 +372,7 @@ BEGIN
     RAISE EXCEPTION 'Reason for change is required';
   END IF;
 
-  -- Identify sample risks: external IDs R-001..R-010 OR title containing "Test"/"Sample"
+  -- Identify sample risks: external IDs R-001..R-010 OR event containing "Test"/"Sample"
   SELECT array_agg(id) INTO v_risk_ids
     FROM public.rg_risk_register
    WHERE risk_external_id ~ '^R-0(0[1-9]|10)$'
@@ -377,31 +380,74 @@ BEGIN
       OR risk_event ILIKE '%sample%';
 
   IF v_risk_ids IS NOT NULL THEN
-    -- Linked records first (FK safety)
-    DELETE FROM public.rg_comments       WHERE entity_type = 'risk' AND entity_id = ANY(v_risk_ids);
-    GET DIAGNOSTICS v_n_comments = ROW_COUNT;
-    DELETE FROM public.rg_risk_reviews   WHERE risk_id = ANY(v_risk_ids);
+    -- Capture linked actions/qi BEFORE deleting them so we can clear their comments
+    SELECT array_agg(id) INTO v_action_ids
+      FROM public.rg_be_smart_actions
+     WHERE linked_risk_id = ANY(v_risk_ids);
+    SELECT array_agg(id) INTO v_qi_ids
+      FROM public.rg_quality_improvement_items
+     WHERE linked_risk_id = ANY(v_risk_ids);
+
+    -- Comments on the risks themselves
+    DELETE FROM public.rg_comments
+     WHERE entity_type = 'risk' AND entity_id = ANY(v_risk_ids);
+    GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_comments := v_n_comments + v_n_tmp;
+
+    -- Comments on linked actions / qi
+    IF v_action_ids IS NOT NULL THEN
+      DELETE FROM public.rg_comments
+       WHERE entity_type = 'be_smart_action' AND entity_id = ANY(v_action_ids);
+      GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_comments := v_n_comments + v_n_tmp;
+    END IF;
+    IF v_qi_ids IS NOT NULL THEN
+      DELETE FROM public.rg_comments
+       WHERE entity_type = 'qi_item' AND entity_id = ANY(v_qi_ids);
+      GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_comments := v_n_comments + v_n_tmp;
+    END IF;
+
+    DELETE FROM public.rg_risk_reviews WHERE risk_id = ANY(v_risk_ids);
     GET DIAGNOSTICS v_n_reviews = ROW_COUNT;
-    DELETE FROM public.rg_besmart_actions WHERE risk_id = ANY(v_risk_ids);
+
+    DELETE FROM public.rg_be_smart_actions WHERE linked_risk_id = ANY(v_risk_ids);
     GET DIAGNOSTICS v_n_actions = ROW_COUNT;
-    DELETE FROM public.rg_qi_items       WHERE risk_id = ANY(v_risk_ids);
+
+    DELETE FROM public.rg_quality_improvement_items WHERE linked_risk_id = ANY(v_risk_ids);
     GET DIAGNOSTICS v_n_qi = ROW_COUNT;
-    DELETE FROM public.rg_risk_register  WHERE id = ANY(v_risk_ids);
+
+    DELETE FROM public.rg_risk_register WHERE id = ANY(v_risk_ids);
     GET DIAGNOSTICS v_n_risks = ROW_COUNT;
   END IF;
 
-  -- Test BE SMART actions / QI items not linked to any cleared risk
-  WITH d AS (
-    DELETE FROM public.rg_besmart_actions
-     WHERE action_text ILIKE '%test%' OR action_text ILIKE '%sample%'
-    RETURNING 1
-  ) SELECT v_n_actions + count(*) INTO v_n_actions FROM d;
+  -- Standalone test BE SMART actions (capture ids first to clean their comments)
+  SELECT array_agg(id) INTO v_action_ids
+    FROM public.rg_be_smart_actions
+   WHERE action_title    ILIKE '%test%' OR action_title    ILIKE '%sample%'
+      OR progress_notes  ILIKE '%test%' OR progress_notes  ILIKE '%sample%'
+      OR evidence_notes  ILIKE '%test%' OR evidence_notes  ILIKE '%sample%';
+  IF v_action_ids IS NOT NULL THEN
+    DELETE FROM public.rg_comments
+     WHERE entity_type = 'be_smart_action' AND entity_id = ANY(v_action_ids);
+    GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_comments := v_n_comments + v_n_tmp;
 
-  WITH d AS (
-    DELETE FROM public.rg_qi_items
-     WHERE title ILIKE '%test%' OR title ILIKE '%sample%'
-    RETURNING 1
-  ) SELECT v_n_qi + count(*) INTO v_n_qi FROM d;
+    DELETE FROM public.rg_be_smart_actions WHERE id = ANY(v_action_ids);
+    GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_actions := v_n_actions + v_n_tmp;
+  END IF;
+
+  -- Standalone test QI items
+  SELECT array_agg(id) INTO v_qi_ids
+    FROM public.rg_quality_improvement_items
+   WHERE description        ILIKE '%test%' OR description        ILIKE '%sample%'
+      OR reason_background  ILIKE '%test%' OR reason_background  ILIKE '%sample%'
+      OR recommended_action ILIKE '%test%' OR recommended_action ILIKE '%sample%'
+      OR evidence_notes     ILIKE '%test%' OR evidence_notes     ILIKE '%sample%';
+  IF v_qi_ids IS NOT NULL THEN
+    DELETE FROM public.rg_comments
+     WHERE entity_type = 'qi_item' AND entity_id = ANY(v_qi_ids);
+    GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_comments := v_n_comments + v_n_tmp;
+
+    DELETE FROM public.rg_quality_improvement_items WHERE id = ANY(v_qi_ids);
+    GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_qi := v_n_qi + v_n_tmp;
+  END IF;
 
   PERFORM public._rg_audit_write(
     'clear_sample_data','system', NULL,
