@@ -47,6 +47,22 @@ END $$;
 -- ---------------------------------------------------------------------
 -- 2. Seed any missing guidance sections (safe / idempotent)
 -- ---------------------------------------------------------------------
+-- Defensive: dedupe by section_key (keep oldest), then ensure unique index
+-- exists before the ON CONFLICT (section_key) clause is used below.
+WITH duplicates AS (
+  SELECT id,
+         row_number() OVER (
+           PARTITION BY section_key
+           ORDER BY created_at, id
+         ) AS rn
+  FROM public.rg_risk_guidance_sections
+)
+DELETE FROM public.rg_risk_guidance_sections
+ WHERE id IN (SELECT id FROM duplicates WHERE rn > 1);
+
+CREATE UNIQUE INDEX IF NOT EXISTS rg_risk_guidance_sections_section_key_unique
+  ON public.rg_risk_guidance_sections (section_key);
+
 INSERT INTO public.rg_risk_guidance_sections (section_key, title, content, sort_order)
 VALUES
   ('introduction',          'Introduction and Purpose',
@@ -246,11 +262,19 @@ DECLARE
   v_is_president boolean;
   v_sensitive boolean;
   v_existing boolean;
+  v_role_type regtype;
+  v_sql text;
 BEGIN
   IF v_uid IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
 
-  SELECT public.has_role(v_uid, 'super_admin'::public.app_role) INTO v_is_super;
-  SELECT public.has_role(v_uid, 'president'::public.app_role)   INTO v_is_president;
+  -- Validate role string against the project's allowed values
+  IF p_role NOT IN ('super_admin','president','committee','admin','umpire') THEN
+    RAISE EXCEPTION 'Invalid role: %', p_role;
+  END IF;
+
+  -- has_role() in this project accepts the same text values; no enum cast required
+  SELECT public.has_role(v_uid, 'super_admin') INTO v_is_super;
+  SELECT public.has_role(v_uid, 'president')   INTO v_is_president;
 
   -- Permission rules
   IF p_role IN ('super_admin','president') THEN
@@ -262,7 +286,7 @@ BEGIN
       RAISE EXCEPTION 'Only super_admin or president can change committee role';
     END IF;
   ELSE
-    -- admin / umpire / risk roles: super_admin only (safe default)
+    -- admin / umpire: super_admin only (safe default)
     IF NOT v_is_super THEN
       RAISE EXCEPTION 'Only super_admin can change this role';
     END IF;
@@ -274,6 +298,14 @@ BEGIN
 
   v_sensitive := p_role IN ('super_admin','president','committee');
 
+  -- Detect the actual data type of public.user_roles.role so we can cast safely
+  -- whether the column is text or an enum (e.g. public.app_role).
+  SELECT atttypid::regtype INTO v_role_type
+    FROM pg_attribute
+   WHERE attrelid = 'public.user_roles'::regclass
+     AND attname  = 'role'
+     AND NOT attisdropped;
+
   SELECT EXISTS (
     SELECT 1 FROM public.user_roles
      WHERE user_id = p_user_id AND role::text = p_role
@@ -281,16 +313,22 @@ BEGIN
 
   IF p_grant THEN
     IF v_existing THEN RETURN; END IF;
-    EXECUTE format('INSERT INTO public.user_roles (user_id, role) VALUES (%L, %L::public.app_role)',
-                   p_user_id, p_role);
+    v_sql := format(
+      'INSERT INTO public.user_roles (user_id, role) VALUES (%L, %L::%s)',
+      p_user_id, p_role, v_role_type::text
+    );
+    EXECUTE v_sql;
     PERFORM public._rg_audit_write(
       'role_grant','user_roles', p_user_id,
       'role', NULL, p_role, p_reason_for_change, v_sensitive
     );
   ELSE
     IF NOT v_existing THEN RETURN; END IF;
-    EXECUTE format('DELETE FROM public.user_roles WHERE user_id = %L AND role = %L::public.app_role',
-                   p_user_id, p_role);
+    v_sql := format(
+      'DELETE FROM public.user_roles WHERE user_id = %L AND role::text = %L',
+      p_user_id, p_role
+    );
+    EXECUTE v_sql;
     PERFORM public._rg_audit_write(
       'role_revoke','user_roles', p_user_id,
       'role', p_role, NULL, p_reason_for_change, v_sensitive
@@ -313,12 +351,15 @@ SET search_path = public
 AS $$
 DECLARE
   v_uid uuid := auth.uid();
-  v_risk_ids uuid[];
-  v_n_risks int := 0;
-  v_n_actions int := 0;
-  v_n_qi int := 0;
-  v_n_reviews int := 0;
+  v_risk_ids   uuid[];
+  v_action_ids uuid[];
+  v_qi_ids     uuid[];
+  v_n_risks    int := 0;
+  v_n_actions  int := 0;
+  v_n_qi       int := 0;
+  v_n_reviews  int := 0;
   v_n_comments int := 0;
+  v_n_tmp      int := 0;
 BEGIN
   IF v_uid IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
   IF NOT public.can_edit_risk_matrix(v_uid) THEN
@@ -331,7 +372,7 @@ BEGIN
     RAISE EXCEPTION 'Reason for change is required';
   END IF;
 
-  -- Identify sample risks: external IDs R-001..R-010 OR title containing "Test"/"Sample"
+  -- Identify sample risks: external IDs R-001..R-010 OR event containing "Test"/"Sample"
   SELECT array_agg(id) INTO v_risk_ids
     FROM public.rg_risk_register
    WHERE risk_external_id ~ '^R-0(0[1-9]|10)$'
@@ -339,31 +380,74 @@ BEGIN
       OR risk_event ILIKE '%sample%';
 
   IF v_risk_ids IS NOT NULL THEN
-    -- Linked records first (FK safety)
-    DELETE FROM public.rg_comments       WHERE entity_type = 'risk' AND entity_id = ANY(v_risk_ids);
-    GET DIAGNOSTICS v_n_comments = ROW_COUNT;
-    DELETE FROM public.rg_risk_reviews   WHERE risk_id = ANY(v_risk_ids);
+    -- Capture linked actions/qi BEFORE deleting them so we can clear their comments
+    SELECT array_agg(id) INTO v_action_ids
+      FROM public.rg_be_smart_actions
+     WHERE linked_risk_id = ANY(v_risk_ids);
+    SELECT array_agg(id) INTO v_qi_ids
+      FROM public.rg_quality_improvement_items
+     WHERE linked_risk_id = ANY(v_risk_ids);
+
+    -- Comments on the risks themselves
+    DELETE FROM public.rg_comments
+     WHERE entity_type = 'risk' AND entity_id = ANY(v_risk_ids);
+    GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_comments := v_n_comments + v_n_tmp;
+
+    -- Comments on linked actions / qi
+    IF v_action_ids IS NOT NULL THEN
+      DELETE FROM public.rg_comments
+       WHERE entity_type = 'be_smart_action' AND entity_id = ANY(v_action_ids);
+      GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_comments := v_n_comments + v_n_tmp;
+    END IF;
+    IF v_qi_ids IS NOT NULL THEN
+      DELETE FROM public.rg_comments
+       WHERE entity_type = 'qi_item' AND entity_id = ANY(v_qi_ids);
+      GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_comments := v_n_comments + v_n_tmp;
+    END IF;
+
+    DELETE FROM public.rg_risk_reviews WHERE risk_id = ANY(v_risk_ids);
     GET DIAGNOSTICS v_n_reviews = ROW_COUNT;
-    DELETE FROM public.rg_besmart_actions WHERE risk_id = ANY(v_risk_ids);
+
+    DELETE FROM public.rg_be_smart_actions WHERE linked_risk_id = ANY(v_risk_ids);
     GET DIAGNOSTICS v_n_actions = ROW_COUNT;
-    DELETE FROM public.rg_qi_items       WHERE risk_id = ANY(v_risk_ids);
+
+    DELETE FROM public.rg_quality_improvement_items WHERE linked_risk_id = ANY(v_risk_ids);
     GET DIAGNOSTICS v_n_qi = ROW_COUNT;
-    DELETE FROM public.rg_risk_register  WHERE id = ANY(v_risk_ids);
+
+    DELETE FROM public.rg_risk_register WHERE id = ANY(v_risk_ids);
     GET DIAGNOSTICS v_n_risks = ROW_COUNT;
   END IF;
 
-  -- Test BE SMART actions / QI items not linked to any cleared risk
-  WITH d AS (
-    DELETE FROM public.rg_besmart_actions
-     WHERE action_text ILIKE '%test%' OR action_text ILIKE '%sample%'
-    RETURNING 1
-  ) SELECT v_n_actions + count(*) INTO v_n_actions FROM d;
+  -- Standalone test BE SMART actions (capture ids first to clean their comments)
+  SELECT array_agg(id) INTO v_action_ids
+    FROM public.rg_be_smart_actions
+   WHERE action_title    ILIKE '%test%' OR action_title    ILIKE '%sample%'
+      OR progress_notes  ILIKE '%test%' OR progress_notes  ILIKE '%sample%'
+      OR evidence_notes  ILIKE '%test%' OR evidence_notes  ILIKE '%sample%';
+  IF v_action_ids IS NOT NULL THEN
+    DELETE FROM public.rg_comments
+     WHERE entity_type = 'be_smart_action' AND entity_id = ANY(v_action_ids);
+    GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_comments := v_n_comments + v_n_tmp;
 
-  WITH d AS (
-    DELETE FROM public.rg_qi_items
-     WHERE title ILIKE '%test%' OR title ILIKE '%sample%'
-    RETURNING 1
-  ) SELECT v_n_qi + count(*) INTO v_n_qi FROM d;
+    DELETE FROM public.rg_be_smart_actions WHERE id = ANY(v_action_ids);
+    GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_actions := v_n_actions + v_n_tmp;
+  END IF;
+
+  -- Standalone test QI items
+  SELECT array_agg(id) INTO v_qi_ids
+    FROM public.rg_quality_improvement_items
+   WHERE description        ILIKE '%test%' OR description        ILIKE '%sample%'
+      OR reason_background  ILIKE '%test%' OR reason_background  ILIKE '%sample%'
+      OR recommended_action ILIKE '%test%' OR recommended_action ILIKE '%sample%'
+      OR evidence_notes     ILIKE '%test%' OR evidence_notes     ILIKE '%sample%';
+  IF v_qi_ids IS NOT NULL THEN
+    DELETE FROM public.rg_comments
+     WHERE entity_type = 'qi_item' AND entity_id = ANY(v_qi_ids);
+    GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_comments := v_n_comments + v_n_tmp;
+
+    DELETE FROM public.rg_quality_improvement_items WHERE id = ANY(v_qi_ids);
+    GET DIAGNOSTICS v_n_tmp = ROW_COUNT; v_n_qi := v_n_qi + v_n_tmp;
+  END IF;
 
   PERFORM public._rg_audit_write(
     'clear_sample_data','system', NULL,
@@ -409,6 +493,63 @@ BEGIN
   END IF;
 END $$;
 
+-- ---------------------------------------------------------------------
+-- 9. Tighten RLS on settings tables
+--    SELECT  → has_risk_access(auth.uid())  (committee can view)
+--    INSERT/UPDATE → can_edit_risk_matrix(auth.uid())  (super_admin/president)
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE
+  t text;
+  tables text[] := ARRAY[
+    'rg_dropdown_values',
+    'rg_clubs',
+    'rg_team_club_links',
+    'rg_venues'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tables LOOP
+    -- Only act if the table exists (rg_venues is created above; others in earlier phases)
+    IF EXISTS (
+      SELECT 1 FROM pg_class c
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'public' AND c.relname = t AND c.relkind = 'r'
+    ) THEN
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_select', t);
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR SELECT TO authenticated
+           USING (public.has_risk_access(auth.uid()))',
+        t || '_select', t
+      );
+
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_insert', t);
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR INSERT TO authenticated
+           WITH CHECK (public.can_edit_risk_matrix(auth.uid()))',
+        t || '_insert', t
+      );
+
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_update', t);
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR UPDATE TO authenticated
+           USING (public.can_edit_risk_matrix(auth.uid()))
+           WITH CHECK (public.can_edit_risk_matrix(auth.uid()))',
+        t || '_update', t
+      );
+
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_delete', t);
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR DELETE TO authenticated
+           USING (public.can_edit_risk_matrix(auth.uid()))',
+        t || '_delete', t
+      );
+    END IF;
+  END LOOP;
+END $$;
+
 -- =====================================================================
 -- End of Phase 4 migration
 -- =====================================================================
+
