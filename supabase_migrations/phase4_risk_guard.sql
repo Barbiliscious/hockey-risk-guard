@@ -47,6 +47,22 @@ END $$;
 -- ---------------------------------------------------------------------
 -- 2. Seed any missing guidance sections (safe / idempotent)
 -- ---------------------------------------------------------------------
+-- Defensive: dedupe by section_key (keep oldest), then ensure unique index
+-- exists before the ON CONFLICT (section_key) clause is used below.
+WITH duplicates AS (
+  SELECT id,
+         row_number() OVER (
+           PARTITION BY section_key
+           ORDER BY created_at, id
+         ) AS rn
+  FROM public.rg_risk_guidance_sections
+)
+DELETE FROM public.rg_risk_guidance_sections
+ WHERE id IN (SELECT id FROM duplicates WHERE rn > 1);
+
+CREATE UNIQUE INDEX IF NOT EXISTS rg_risk_guidance_sections_section_key_unique
+  ON public.rg_risk_guidance_sections (section_key);
+
 INSERT INTO public.rg_risk_guidance_sections (section_key, title, content, sort_order)
 VALUES
   ('introduction',          'Introduction and Purpose',
