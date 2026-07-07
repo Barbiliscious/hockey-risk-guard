@@ -24,7 +24,7 @@ export default function AppLayout() {
               <h1 className="text-base font-semibold tracking-tight">Hockey Risk Guard</h1>
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <span className="hidden sm:inline opacity-90">{user.email}</span>
+              <span className="hidden sm:inline opacity-90">{user?.email ?? "Guest (auth disabled)"}</span>
               <Button
                 variant="ghost"
                 size="sm"
