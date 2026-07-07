@@ -1,17 +1,15 @@
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import { ShieldAlert, LogOut } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { useRiskAccess } from "@/hooks/useRiskAccess";
 
 export default function AppLayout() {
-  const { user, loading, signOut } = useAuth();
-  const { loading: accessLoading, hasRiskAccess } = useRiskAccess();
-
-  if (loading) return <FullScreen>Loading…</FullScreen>;
-  if (!user) return <Navigate to="/auth" replace />;
+  const { user, signOut } = useAuth();
+  // Auth temporarily disabled — allow access without a session.
+  const accessLoading = false;
+  const hasRiskAccess = true;
 
   return (
     <SidebarProvider>
@@ -25,7 +23,7 @@ export default function AppLayout() {
               <h1 className="text-base font-semibold tracking-tight">Hockey Risk Guard</h1>
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <span className="hidden sm:inline opacity-90">{user.email}</span>
+              <span className="hidden sm:inline opacity-90">{user?.email ?? "Guest (auth disabled)"}</span>
               <Button
                 variant="ghost"
                 size="sm"
