@@ -20,7 +20,7 @@ var echo_default = defineTool({
 });
 
 // src/lib/mcp/tools/list-risk-matrix.ts
-import { createClient } from "npm:@supabase/supabase-js@^2.105.1";
+import { createClient } from "npm:@supabase/supabase-js@^2.110.0";
 import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@0.20.0";
 var list_risk_matrix_default = defineTool2({
   name: "list_risk_matrix",
