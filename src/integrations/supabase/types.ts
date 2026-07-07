@@ -95,6 +95,115 @@ export type Database = {
         }
         Relationships: []
       }
+      rg_be_smart_actions: {
+        Row: {
+          achievable: string | null
+          action_external_id: string
+          action_title: string
+          archived_at: string | null
+          archived_by: string | null
+          baseline: string | null
+          club_id: string | null
+          created_at: string
+          created_by: string | null
+          date_completed: string | null
+          due_date: string | null
+          evaluate: string | null
+          evidence_notes: string | null
+          id: string
+          is_archived: boolean
+          linked_risk_id: string | null
+          measurable: string | null
+          progress_notes: string | null
+          relevant: string | null
+          resources_needed: string | null
+          responsible_person_role: string | null
+          specific: string | null
+          status: string
+          team_id: string | null
+          time_based: string | null
+          updated_at: string
+        }
+        Insert: {
+          achievable?: string | null
+          action_external_id?: string
+          action_title: string
+          archived_at?: string | null
+          archived_by?: string | null
+          baseline?: string | null
+          club_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          date_completed?: string | null
+          due_date?: string | null
+          evaluate?: string | null
+          evidence_notes?: string | null
+          id?: string
+          is_archived?: boolean
+          linked_risk_id?: string | null
+          measurable?: string | null
+          progress_notes?: string | null
+          relevant?: string | null
+          resources_needed?: string | null
+          responsible_person_role?: string | null
+          specific?: string | null
+          status?: string
+          team_id?: string | null
+          time_based?: string | null
+          updated_at?: string
+        }
+        Update: {
+          achievable?: string | null
+          action_external_id?: string
+          action_title?: string
+          archived_at?: string | null
+          archived_by?: string | null
+          baseline?: string | null
+          club_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          date_completed?: string | null
+          due_date?: string | null
+          evaluate?: string | null
+          evidence_notes?: string | null
+          id?: string
+          is_archived?: boolean
+          linked_risk_id?: string | null
+          measurable?: string | null
+          progress_notes?: string | null
+          relevant?: string | null
+          resources_needed?: string | null
+          responsible_person_role?: string | null
+          specific?: string | null
+          status?: string
+          team_id?: string | null
+          time_based?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rg_be_smart_actions_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "rg_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rg_be_smart_actions_linked_risk_id_fkey"
+            columns: ["linked_risk_id"]
+            isOneToOne: false
+            referencedRelation: "rg_risk_register"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rg_be_smart_actions_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rg_clubs: {
         Row: {
           active: boolean
@@ -119,6 +228,39 @@ export type Database = {
           name?: string
           short_name?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      rg_comments: {
+        Row: {
+          author_id: string | null
+          body: string
+          created_at: string
+          edited_at: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          is_deleted: boolean
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          created_at?: string
+          edited_at?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          is_deleted?: boolean
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          edited_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          is_deleted?: boolean
         }
         Relationships: []
       }
@@ -151,6 +293,128 @@ export type Database = {
           value?: string
         }
         Relationships: []
+      }
+      rg_quality_improvement_items: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          area: string | null
+          club_id: string | null
+          created_at: string
+          date_closed: string | null
+          date_logged: string
+          description: string
+          evidence_notes: string | null
+          id: string
+          is_archived: boolean
+          linked_action_id: string | null
+          linked_risk_id: string | null
+          logged_by: string | null
+          outcome_decision: string | null
+          owner_reviewer: string | null
+          priority: string | null
+          qi_external_id: string
+          qi_type: string | null
+          reason_background: string | null
+          recommended_action: string | null
+          related_project_review: string | null
+          review_date: string | null
+          review_trigger: string | null
+          source: string | null
+          status: string
+          team_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          area?: string | null
+          club_id?: string | null
+          created_at?: string
+          date_closed?: string | null
+          date_logged?: string
+          description: string
+          evidence_notes?: string | null
+          id?: string
+          is_archived?: boolean
+          linked_action_id?: string | null
+          linked_risk_id?: string | null
+          logged_by?: string | null
+          outcome_decision?: string | null
+          owner_reviewer?: string | null
+          priority?: string | null
+          qi_external_id?: string
+          qi_type?: string | null
+          reason_background?: string | null
+          recommended_action?: string | null
+          related_project_review?: string | null
+          review_date?: string | null
+          review_trigger?: string | null
+          source?: string | null
+          status?: string
+          team_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          area?: string | null
+          club_id?: string | null
+          created_at?: string
+          date_closed?: string | null
+          date_logged?: string
+          description?: string
+          evidence_notes?: string | null
+          id?: string
+          is_archived?: boolean
+          linked_action_id?: string | null
+          linked_risk_id?: string | null
+          logged_by?: string | null
+          outcome_decision?: string | null
+          owner_reviewer?: string | null
+          priority?: string | null
+          qi_external_id?: string
+          qi_type?: string | null
+          reason_background?: string | null
+          recommended_action?: string | null
+          related_project_review?: string | null
+          review_date?: string | null
+          review_trigger?: string | null
+          source?: string | null
+          status?: string
+          team_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rg_quality_improvement_items_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "rg_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rg_quality_improvement_items_linked_action_id_fkey"
+            columns: ["linked_action_id"]
+            isOneToOne: false
+            referencedRelation: "rg_be_smart_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rg_quality_improvement_items_linked_risk_id_fkey"
+            columns: ["linked_risk_id"]
+            isOneToOne: false
+            referencedRelation: "rg_risk_register"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rg_quality_improvement_items_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rg_risk_guidance_sections: {
         Row: {
@@ -486,7 +750,13 @@ export type Database = {
       can_edit_risk_matrix: { Args: { _user_id: string }; Returns: boolean }
       has_risk_access: { Args: { _user_id: string }; Returns: boolean }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
+      rg_next_action_external_id: { Args: never; Returns: string }
+      rg_next_qi_external_id: { Args: never; Returns: string }
       rg_next_risk_external_id: { Args: never; Returns: string }
+      rg_record_risk_review: {
+        Args: { p_notes: string; p_outcome: string; p_risk_id: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
