@@ -41,6 +41,322 @@ export type Database = {
         }
         Relationships: []
       }
+      rg_audit_log: {
+        Row: {
+          action_type: string | null
+          created_at: string
+          device_info: string | null
+          entity_id: string | null
+          entity_type: string | null
+          field_changed: string | null
+          id: string
+          ip_address: string | null
+          is_sensitive: boolean
+          new_value: string | null
+          previous_value: string | null
+          reason_for_change: string | null
+          user_id: string | null
+          user_name: string | null
+          user_role: string | null
+        }
+        Insert: {
+          action_type?: string | null
+          created_at?: string
+          device_info?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          field_changed?: string | null
+          id?: string
+          ip_address?: string | null
+          is_sensitive?: boolean
+          new_value?: string | null
+          previous_value?: string | null
+          reason_for_change?: string | null
+          user_id?: string | null
+          user_name?: string | null
+          user_role?: string | null
+        }
+        Update: {
+          action_type?: string | null
+          created_at?: string
+          device_info?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          field_changed?: string | null
+          id?: string
+          ip_address?: string | null
+          is_sensitive?: boolean
+          new_value?: string | null
+          previous_value?: string | null
+          reason_for_change?: string | null
+          user_id?: string | null
+          user_name?: string | null
+          user_role?: string | null
+        }
+        Relationships: []
+      }
+      rg_dropdown_values: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          id: string
+          list_type: string
+          sort_order: number | null
+          value: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          list_type: string
+          sort_order?: number | null
+          value: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          list_type?: string
+          sort_order?: number | null
+          value?: string
+        }
+        Relationships: []
+      }
+      rg_risk_guidance_sections: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          section_key: string
+          sort_order: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          section_key: string
+          sort_order?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          section_key?: string
+          sort_order?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rg_risk_matrix: {
+        Row: {
+          consequence_label: string
+          consequence_score: number
+          created_at: string
+          id: string
+          likelihood_label: string
+          likelihood_score: number
+          rating: string
+          updated_at: string
+        }
+        Insert: {
+          consequence_label: string
+          consequence_score: number
+          created_at?: string
+          id?: string
+          likelihood_label: string
+          likelihood_score: number
+          rating: string
+          updated_at?: string
+        }
+        Update: {
+          consequence_label?: string
+          consequence_score?: number
+          created_at?: string
+          id?: string
+          likelihood_label?: string
+          likelihood_score?: number
+          rating?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rg_risk_register: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          consequences: string | null
+          controls_in_place: string | null
+          created_at: string
+          created_by: string | null
+          current_risk_summary: string | null
+          evidence_notes: string | null
+          id: string
+          inherent_consequence_score: number | null
+          inherent_likelihood_score: number | null
+          is_archived: boolean
+          last_reviewed_date: string | null
+          level: string | null
+          next_review_date: string | null
+          residual_consequence_score: number | null
+          residual_likelihood_score: number | null
+          review_frequency: string | null
+          reviewed_by: string | null
+          risk_category: string | null
+          risk_event: string
+          risk_external_id: string
+          risk_owner: string | null
+          risk_target_description: string | null
+          risk_target_rating: string | null
+          risk_type: string | null
+          status: string | null
+          team_id: string | null
+          treatment_plan: string | null
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          consequences?: string | null
+          controls_in_place?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_risk_summary?: string | null
+          evidence_notes?: string | null
+          id?: string
+          inherent_consequence_score?: number | null
+          inherent_likelihood_score?: number | null
+          is_archived?: boolean
+          last_reviewed_date?: string | null
+          level?: string | null
+          next_review_date?: string | null
+          residual_consequence_score?: number | null
+          residual_likelihood_score?: number | null
+          review_frequency?: string | null
+          reviewed_by?: string | null
+          risk_category?: string | null
+          risk_event: string
+          risk_external_id: string
+          risk_owner?: string | null
+          risk_target_description?: string | null
+          risk_target_rating?: string | null
+          risk_type?: string | null
+          status?: string | null
+          team_id?: string | null
+          treatment_plan?: string | null
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          consequences?: string | null
+          controls_in_place?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_risk_summary?: string | null
+          evidence_notes?: string | null
+          id?: string
+          inherent_consequence_score?: number | null
+          inherent_likelihood_score?: number | null
+          is_archived?: boolean
+          last_reviewed_date?: string | null
+          level?: string | null
+          next_review_date?: string | null
+          residual_consequence_score?: number | null
+          residual_likelihood_score?: number | null
+          review_frequency?: string | null
+          reviewed_by?: string | null
+          risk_category?: string | null
+          risk_event?: string
+          risk_external_id?: string
+          risk_owner?: string | null
+          risk_target_description?: string | null
+          risk_target_rating?: string | null
+          risk_type?: string | null
+          status?: string | null
+          team_id?: string | null
+          treatment_plan?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rg_risk_register_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rg_risk_reviews: {
+        Row: {
+          created_at: string
+          id: string
+          inherent_consequence_score: number | null
+          inherent_likelihood_score: number | null
+          inherent_rating_snapshot: string | null
+          notes: string | null
+          outcome: string | null
+          residual_consequence_score: number | null
+          residual_likelihood_score: number | null
+          residual_rating_snapshot: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          risk_id: string | null
+          risk_status_snapshot: string | null
+          risk_target_rating_snapshot: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inherent_consequence_score?: number | null
+          inherent_likelihood_score?: number | null
+          inherent_rating_snapshot?: string | null
+          notes?: string | null
+          outcome?: string | null
+          residual_consequence_score?: number | null
+          residual_likelihood_score?: number | null
+          residual_rating_snapshot?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          risk_id?: string | null
+          risk_status_snapshot?: string | null
+          risk_target_rating_snapshot?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inherent_consequence_score?: number | null
+          inherent_likelihood_score?: number | null
+          inherent_rating_snapshot?: string | null
+          notes?: string | null
+          outcome?: string | null
+          residual_consequence_score?: number | null
+          residual_likelihood_score?: number | null
+          residual_rating_snapshot?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          risk_id?: string | null
+          risk_status_snapshot?: string | null
+          risk_target_rating_snapshot?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rg_risk_reviews_risk_id_fkey"
+            columns: ["risk_id"]
+            isOneToOne: false
+            referencedRelation: "rg_risk_register"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           active: boolean
