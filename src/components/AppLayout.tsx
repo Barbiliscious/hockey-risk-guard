@@ -7,11 +7,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRiskAccess } from "@/hooks/useRiskAccess";
 
 export default function AppLayout() {
-  const { user, loading, signOut } = useAuth();
-  const { loading: accessLoading, hasRiskAccess } = useRiskAccess();
-
-  if (loading) return <FullScreen>Loading…</FullScreen>;
-  if (!user) return <Navigate to="/auth" replace />;
+  const { user, signOut } = useAuth();
+  // Auth temporarily disabled — allow access without a session.
+  const accessLoading = false;
+  const hasRiskAccess = true;
 
   return (
     <SidebarProvider>
