@@ -739,12 +739,13 @@ export type Database = {
           },
         ]
       }
-      teams: {
+      rg_venues: {
         Row: {
           active: boolean
           created_at: string
           id: string
           name: string
+          notes: string | null
           updated_at: string
         }
         Insert: {
@@ -752,6 +753,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          notes?: string | null
           updated_at?: string
         }
         Update: {
@@ -759,6 +761,34 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      teams: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          short_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          short_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          short_name?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -916,15 +946,88 @@ export type Database = {
       }
     }
     Functions: {
+      _rg_audit_write: {
+        Args: {
+          p_action_type: string
+          p_entity_id: string
+          p_entity_type: string
+          p_field: string
+          p_new: string
+          p_old: string
+          p_reason: string
+          p_sensitive: boolean
+        }
+        Returns: undefined
+      }
       can_edit_risk_matrix: { Args: { _user_id: string }; Returns: boolean }
       has_risk_access: { Args: { _user_id: string }; Returns: boolean }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
+      rg_clear_sample_data: {
+        Args: { p_confirmation: string; p_reason: string }
+        Returns: Json
+      }
       rg_next_action_external_id: { Args: never; Returns: string }
       rg_next_qi_external_id: { Args: never; Returns: string }
       rg_next_risk_external_id: { Args: never; Returns: string }
       rg_record_risk_review: {
         Args: { p_notes: string; p_outcome: string; p_risk_id: string }
         Returns: string
+      }
+      rg_set_user_role: {
+        Args: {
+          p_grant: boolean
+          p_reason_for_change: string
+          p_role: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      rg_update_guidance_section: {
+        Args: {
+          p_content: string
+          p_reason_for_change: string
+          p_section_key: string
+          p_title: string
+        }
+        Returns: {
+          content: string
+          created_at: string
+          id: string
+          section_key: string
+          sort_order: number | null
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rg_risk_guidance_sections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      rg_update_matrix_cell: {
+        Args: {
+          p_consequence_score: number
+          p_likelihood_score: number
+          p_new_rating: string
+          p_reason_for_change: string
+        }
+        Returns: {
+          consequence_label: string
+          consequence_score: number
+          created_at: string
+          id: string
+          likelihood_label: string
+          likelihood_score: number
+          rating: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rg_risk_matrix"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {
