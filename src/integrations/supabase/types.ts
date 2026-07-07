@@ -196,6 +196,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "rg_be_smart_actions_linked_risk_id_fkey"
+            columns: ["linked_risk_id"]
+            isOneToOne: false
+            referencedRelation: "rg_v_risk_alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rg_be_smart_actions_linked_risk_id_fkey"
+            columns: ["linked_risk_id"]
+            isOneToOne: false
+            referencedRelation: "rg_v_risks_with_live_ratings"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "rg_be_smart_actions_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
@@ -405,6 +419,20 @@ export type Database = {
             columns: ["linked_risk_id"]
             isOneToOne: false
             referencedRelation: "rg_risk_register"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rg_quality_improvement_items_linked_risk_id_fkey"
+            columns: ["linked_risk_id"]
+            isOneToOne: false
+            referencedRelation: "rg_v_risk_alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rg_quality_improvement_items_linked_risk_id_fkey"
+            columns: ["linked_risk_id"]
+            isOneToOne: false
+            referencedRelation: "rg_v_risks_with_live_ratings"
             referencedColumns: ["id"]
           },
           {
@@ -656,6 +684,20 @@ export type Database = {
             referencedRelation: "rg_risk_register"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "rg_risk_reviews_risk_id_fkey"
+            columns: ["risk_id"]
+            isOneToOne: false
+            referencedRelation: "rg_v_risk_alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rg_risk_reviews_risk_id_fkey"
+            columns: ["risk_id"]
+            isOneToOne: false
+            referencedRelation: "rg_v_risks_with_live_ratings"
+            referencedColumns: ["id"]
+          },
         ]
       }
       rg_team_club_links: {
@@ -744,7 +786,134 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      rg_v_dashboard_summary: {
+        Row: {
+          alert_high_no_action: number | null
+          alert_no_controls: number | null
+          alert_no_owner: number | null
+          alert_qi_awaiting_decision: number | null
+          alert_residual_above_target: number | null
+          alert_review_overdue: number | null
+          bylaw_2027_items: number | null
+          high_risks: number | null
+          low_risks: number | null
+          medium_risks: number | null
+          open_actions: number | null
+          overdue_actions: number | null
+          qi_under_review: number | null
+          total_risks: number | null
+          very_high_risks: number | null
+        }
+        Relationships: []
+      }
+      rg_v_due_items: {
+        Row: {
+          days_overdue: number | null
+          due_date: string | null
+          external_id: string | null
+          item_id: string | null
+          item_type: string | null
+          linked_risk_external_id: string | null
+          linked_risk_id: string | null
+          owner: string | null
+          status: string | null
+          title: string | null
+        }
+        Relationships: []
+      }
+      rg_v_risk_alerts: {
+        Row: {
+          active_action_count: number | null
+          club_id: string | null
+          controls_in_place: string | null
+          flag_high_no_action: boolean | null
+          flag_no_controls: boolean | null
+          flag_no_owner: boolean | null
+          flag_residual_above_target: boolean | null
+          flag_review_overdue: boolean | null
+          id: string | null
+          live_inherent_rating: string | null
+          live_residual_rating: string | null
+          next_review_date: string | null
+          risk_event: string | null
+          risk_external_id: string | null
+          risk_owner: string | null
+          risk_target_rating: string | null
+          status: string | null
+          team_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rg_risk_register_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "rg_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rg_risk_register_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rg_v_risks_with_live_ratings: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          club_id: string | null
+          consequences: string | null
+          controls_in_place: string | null
+          created_at: string | null
+          created_by: string | null
+          current_risk_summary: string | null
+          evidence_notes: string | null
+          id: string | null
+          inherent_consequence_score: number | null
+          inherent_likelihood_score: number | null
+          is_archived: boolean | null
+          last_reviewed_date: string | null
+          level: string | null
+          live_inherent_rating: string | null
+          live_residual_rating: string | null
+          next_review_date: string | null
+          residual_consequence_score: number | null
+          residual_likelihood_score: number | null
+          residual_rating_score: number | null
+          review_frequency: string | null
+          reviewed_by: string | null
+          risk_category: string | null
+          risk_event: string | null
+          risk_external_id: string | null
+          risk_owner: string | null
+          risk_target_description: string | null
+          risk_target_rating: string | null
+          risk_type: string | null
+          status: string | null
+          target_rating_score: number | null
+          team_id: string | null
+          treatment_plan: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rg_risk_register_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "rg_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rg_risk_register_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       can_edit_risk_matrix: { Args: { _user_id: string }; Returns: boolean }
