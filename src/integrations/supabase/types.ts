@@ -95,6 +95,33 @@ export type Database = {
         }
         Relationships: []
       }
+      rg_clubs: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          short_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          short_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          short_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rg_dropdown_values: {
         Row: {
           active: boolean
@@ -192,6 +219,7 @@ export type Database = {
         Row: {
           archived_at: string | null
           archived_by: string | null
+          club_id: string | null
           consequences: string | null
           controls_in_place: string | null
           created_at: string
@@ -224,6 +252,7 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           archived_by?: string | null
+          club_id?: string | null
           consequences?: string | null
           controls_in_place?: string | null
           created_at?: string
@@ -243,7 +272,7 @@ export type Database = {
           reviewed_by?: string | null
           risk_category?: string | null
           risk_event: string
-          risk_external_id: string
+          risk_external_id?: string
           risk_owner?: string | null
           risk_target_description?: string | null
           risk_target_rating?: string | null
@@ -256,6 +285,7 @@ export type Database = {
         Update: {
           archived_at?: string | null
           archived_by?: string | null
+          club_id?: string | null
           consequences?: string | null
           controls_in_place?: string | null
           created_at?: string
@@ -286,6 +316,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rg_risk_register_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "rg_clubs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rg_risk_register_team_id_fkey"
             columns: ["team_id"]
@@ -357,6 +394,45 @@ export type Database = {
           },
         ]
       }
+      rg_team_club_links: {
+        Row: {
+          active: boolean
+          club_id: string
+          created_at: string
+          id: string
+          team_id: string
+        }
+        Insert: {
+          active?: boolean
+          club_id: string
+          created_at?: string
+          id?: string
+          team_id: string
+        }
+        Update: {
+          active?: boolean
+          club_id?: string
+          created_at?: string
+          id?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rg_team_club_links_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "rg_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rg_team_club_links_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           active: boolean
@@ -410,6 +486,7 @@ export type Database = {
       can_edit_risk_matrix: { Args: { _user_id: string }; Returns: boolean }
       has_risk_access: { Args: { _user_id: string }; Returns: boolean }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
+      rg_next_risk_external_id: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never
