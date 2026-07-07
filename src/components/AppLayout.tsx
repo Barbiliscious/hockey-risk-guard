@@ -1,10 +1,9 @@
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import { ShieldAlert, LogOut } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { useRiskAccess } from "@/hooks/useRiskAccess";
 
 export default function AppLayout() {
   const { user, signOut } = useAuth();
